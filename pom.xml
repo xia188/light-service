@@ -6,4 +6,7 @@
   <version>3.0.1</version>
   <packaging>pom</packaging>
   <name>light-service</name>
+  <modules>
+    <module>gserver</module>
+  </modules>
 </project>
