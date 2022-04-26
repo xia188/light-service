@@ -1,0 +1,25 @@
+{
+  "host": "xlongwei.com",
+  "service": "gservice",
+  "action": [
+    {
+      "name": "echo",
+      "version": "0.0.1",
+      "handler": "Echo",
+      "scope": "gservice.r",
+      "schema": {
+        "title": "Service",
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "name": "hello",
+      "version": "0.0.1",
+      "handler": "Hello",
+      "scope": "gservice.r",
+      "schema": {}
+    }
+  ]
+}

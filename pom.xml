@@ -8,5 +8,6 @@
   <name>light-service</name>
   <modules>
     <module>gserver</module>
+    <module>gservice</module>
   </modules>
 </project>

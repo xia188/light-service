@@ -1,0 +1,6 @@
+{"xlongwei.com/gservice/echo/0.0.1":{"schema": {
+        "title": "Service",
+        "type": "object",
+        "properties": {},
+        "required": []
+      },"scope": "gservice.r"},"xlongwei.com/gservice/hello/0.0.1":{"schema": {},"scope": "gservice.r"}}
