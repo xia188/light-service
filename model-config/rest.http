@@ -1,0 +1,27 @@
+@host=http://localhost:8083
+@hybrid={{host}}/hybrid
+@echo={{host}}/hybrid/gservice/echo
+### 支持/hybrid/{service}/{action}
+POST {{echo}}
+Content-Type: application/json
+
+{ "hello":"中文" }
+### 兼容原rpc风格
+POST {{hybrid}}
+
+{
+  "host": "xlongwei.com",
+  "service": "gservice",
+  "action": "echo",
+  "version": "0.0.1",
+  "data": { "hello":"中文" }
+}
+### 支持请求参数，host与version有默认值
+POST {{hybrid}}?service=gservice&action=echo&test=%E6%B5%8B%E8%AF%95
+
+{ "hello":"中文" }
+### 支持表单提交，支持URL编码
+POST {{hybrid}}/gservice/echo
+Content-Type: multipart/form-data
+
+param1=值1&参数2=值2&%E5%8F%82%E6%95%B03=%E5%80%BC3

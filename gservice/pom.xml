@@ -95,6 +95,11 @@
             <artifactId>fast-classpath-scanner</artifactId>
             <version>${version.fastscanner}</version>
         </dependency>
+        <dependency>
+            <groupId>com.xlongwei</groupId>
+            <artifactId>gserver</artifactId>
+            <version>3.0.1</version>
+        </dependency>
         
         
         
