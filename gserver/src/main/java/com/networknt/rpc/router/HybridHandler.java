@@ -12,11 +12,19 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.networknt.config.Config;
 import com.networknt.config.JsonMapper;
 import com.networknt.httpstring.AttachmentConstants;
 import com.networknt.rpc.Handler;
 import com.networknt.rpc.security.JwtVerifyHandler;
+import com.networknt.schema.JsonSchema;
+import com.networknt.schema.JsonSchemaFactory;
+import com.networknt.schema.SpecVersion;
+import com.networknt.schema.ValidationMessage;
 import com.networknt.status.Status;
 import com.networknt.utility.Constants;
 import com.networknt.utility.HybridUtils;
@@ -52,7 +60,7 @@ public class HybridHandler extends AbstractRpcHandler {
         verifyJwt(JwtVerifyHandler.config, serviceId, exchange);
         Object data = HybridUtils.getBodyMap(exchange);
         // calling schema validator here.
-        ByteBuffer error = handler.validate(serviceId, data);
+        ByteBuffer error = validate(serviceId, data);
         if (error != null) {
             exchange.setStatusCode(StatusCodes.BAD_REQUEST);
             exchange.getResponseSender().send(error);
@@ -68,6 +76,35 @@ public class HybridHandler extends AbstractRpcHandler {
         } else if (!exchange.isComplete()) {
             exchange.endExchange();
         }
+    }
+
+    @SuppressWarnings({ "unchecked" })
+    public static ByteBuffer validate(String serviceId, Object object) {
+        // get schema from serviceId, remember that the schema is for the data object only.
+        // the input object is the data attribute of the request body.
+        Map<String, Object> serviceMap = (Map<String, Object>)JsonHandler.schema.get(serviceId);
+        if(log.isDebugEnabled()) {
+            try {
+                log.debug("serviceId = " + serviceId  + " serviceMap = " + Config.getInstance().getMapper().writeValueAsString(serviceMap));
+            } catch (Exception e) {
+                log.error("Exception:", e);
+            }
+        }
+        JsonNode jsonNode = Config.getInstance().getMapper().valueToTree(serviceMap.get("schema"));
+        JsonSchemaFactory factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V4);
+        JsonSchema schema = factory.getSchema(jsonNode);
+        Set<ValidationMessage> errors = schema.validate(Config.getInstance().getMapper().valueToTree(object));
+        ByteBuffer bf = null;
+        if(errors.size() > 0) {
+            try {
+                Status status = new Status(Handler.STATUS_VALIDATION_ERROR, Config.getInstance().getMapper().writeValueAsString(errors));
+                log.error("Validation Error:" + status.toString());
+                bf = HybridUtils.toByteBuffer(status.toString());
+            } catch (JsonProcessingException e) {
+                log.error("Exception:", e);
+            }
+        }
+        return bf;
     }
 
     public static String getServiceId(HttpServerExchange exchange) {

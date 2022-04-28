@@ -73,9 +73,6 @@ public class HybridUtils {
 
     public static ByteBuffer toByteBuffer(String s) {
         byte[] bytes = s.getBytes(StandardCharsets.UTF_8);
-        ByteBuffer buffer = ByteBuffer.allocateDirect(bytes.length);
-        buffer.put(bytes);
-        buffer.flip();
-        return buffer;
+        return ByteBuffer.wrap(bytes);
     }
 }
