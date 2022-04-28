@@ -32,9 +32,6 @@ import com.networknt.utility.StringUtils;
 import com.networknt.utility.Tuple;
 import com.networknt.utility.Util;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import io.undertow.server.HttpServerExchange;
 import io.undertow.server.handlers.form.FormData;
 import io.undertow.server.handlers.form.FormData.FormValue;
@@ -43,9 +40,10 @@ import io.undertow.server.handlers.form.FormParserFactory;
 import io.undertow.util.Headers;
 import io.undertow.util.Methods;
 import io.undertow.util.StatusCodes;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class HybridHandler extends AbstractRpcHandler {
-    static Logger log = LoggerFactory.getLogger(HybridHandler.class);
 
     @Override
     public void handleRequest(HttpServerExchange exchange) throws Exception {
@@ -80,12 +78,12 @@ public class HybridHandler extends AbstractRpcHandler {
 
     @SuppressWarnings({ "unchecked" })
     public static ByteBuffer validate(String serviceId, Object object) {
-        // get schema from serviceId, remember that the schema is for the data object only.
-        // the input object is the data attribute of the request body.
-        Map<String, Object> serviceMap = (Map<String, Object>)JsonHandler.schema.get(serviceId);
-        if(log.isDebugEnabled()) {
+        // get schema from serviceId, remember that the schema is for the bodyMap
+        Map<String, Object> serviceMap = (Map<String, Object>) JsonHandler.schema.get(serviceId);
+        if (log.isDebugEnabled()) {
             try {
-                log.debug("serviceId = " + serviceId  + " serviceMap = " + Config.getInstance().getMapper().writeValueAsString(serviceMap));
+                log.debug("serviceId = " + serviceId + " serviceMap = "
+                        + Config.getInstance().getMapper().writeValueAsString(serviceMap));
             } catch (Exception e) {
                 log.error("Exception:", e);
             }
@@ -95,9 +93,10 @@ public class HybridHandler extends AbstractRpcHandler {
         JsonSchema schema = factory.getSchema(jsonNode);
         Set<ValidationMessage> errors = schema.validate(Config.getInstance().getMapper().valueToTree(object));
         ByteBuffer bf = null;
-        if(errors.size() > 0) {
+        if (errors.size() > 0) {
             try {
-                Status status = new Status(Handler.STATUS_VALIDATION_ERROR, Config.getInstance().getMapper().writeValueAsString(errors));
+                Status status = new Status(Handler.STATUS_VALIDATION_ERROR,
+                        Config.getInstance().getMapper().writeValueAsString(errors));
                 log.error("Validation Error:" + status.toString());
                 bf = HybridUtils.toByteBuffer(status.toString());
             } catch (JsonProcessingException e) {
