@@ -1,0 +1,45 @@
+{
+    "title": "Service",
+    "type": "object",
+    "properties": {
+        "required": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10,
+            "pattern": "[a-zA-Z]+",
+            "description": "description"
+        },
+        "environment": {
+            "type": "string",
+            "enum": [
+                "dev",
+                "pro"
+            ]
+        },
+        "boolean": {
+            "type": "boolean",
+            "default": true
+        },
+        "number": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 10,
+            "exclusiveMinimum": true,
+            "exclusiveMaximum": true
+        },
+        "array": {
+            "type": "array",
+            "items": {
+                "key": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        }
+    },
+    "required": [
+        "required"
+    ]
+}

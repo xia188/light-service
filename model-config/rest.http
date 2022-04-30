@@ -22,6 +22,20 @@ POST {{hybrid}}?service=gservice&action=echo&test=%E6%B5%8B%E8%AF%95
 { "hello":"中文" }
 ### 支持表单提交，支持URL编码
 POST {{hybrid}}/gservice/echo
-Content-Type: multipart/form-data
+Content-Type: application/x-www-form-urlencoded
 
 param1=值1&参数2=值2&%E5%8F%82%E6%95%B03=%E5%80%BC3
+### 支持文件上传
+POST {{hybrid}}/gservice/echo
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="text"
+
+title
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="readme.md"
+Content-Type: text/plain
+
+< ./readme.md
+------WebKitFormBoundary7MA4YWxkTrZu0gW--

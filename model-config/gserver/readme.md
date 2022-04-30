@@ -66,3 +66,8 @@ curl提交中文也有问题，在Windows下内容为GBK字节，gserver总是�
 curl http://localhost:8083/hybrid/gservice/echo \
   -d 'param=%E5%80%BC'
 ```
+
+### hybrid的bodyMap与schema.json
+hybrid的bodyMap是将FormData表单或json正文处理为Map<String,Object>，再合并queryParameters而来，同样使用host、service、action、version来定位serviceId，扩展在于service、action可以通过请求路径提供，host、version有默认值，也可以通过请求参数或正文提供。
+
+schema.json可以严格地校验json正文里的boolean、number等类型，但混合queryParameter之后的bodyMap，param对应的value类型可能是string，因此通常需使用oneOf:[{"type":"boolean"},{"type":"string"}]来校验，若仅使用其中一种类型则另一种类型的值会校验失败。

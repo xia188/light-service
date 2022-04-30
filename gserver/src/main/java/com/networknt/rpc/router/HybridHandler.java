@@ -2,10 +2,9 @@ package com.networknt.rpc.router;
 
 import static com.networknt.rpc.router.JsonHandler.STATUS_HANDLER_NOT_FOUND;
 
-import java.io.InputStream;
 import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -29,7 +28,6 @@ import com.networknt.status.Status;
 import com.networknt.utility.Constants;
 import com.networknt.utility.HybridUtils;
 import com.networknt.utility.StringUtils;
-import com.networknt.utility.Tuple;
 import com.networknt.utility.Util;
 
 import io.undertow.server.HttpServerExchange;
@@ -47,8 +45,59 @@ public class HybridHandler extends AbstractRpcHandler {
 
     @Override
     public void handleRequest(HttpServerExchange exchange) throws Exception {
-        parseBody(exchange);
-        String serviceId = getServiceId(exchange);
+        if (Methods.POST.equals(exchange.getRequestMethod())
+                || Methods.PUT.equals(exchange.getRequestMethod())) {
+            String contentType = exchange.getRequestHeaders().getFirst(Headers.CONTENT_TYPE);
+            if (contentType != null && (contentType.startsWith("multipart/form-data")
+                    || contentType.startsWith("application/x-www-form-urlencoded"))) {
+                FormParserFactory.Builder builder = FormParserFactory.builder();
+                builder.setDefaultCharset(Constants.DEFAULT_CHARACTER);
+                FormDataParser parser = builder.build().createParser(exchange);
+                FormData formData = null;
+                if (parser != null) {
+                    exchange.startBlocking();
+                    formData = parser.parseBlocking();
+                }
+                Map<String, Object> bodyMap = new HashMap<>();
+                parseFormData(bodyMap, formData);
+                parseQueryParameters(bodyMap, exchange);
+                hanadleRequest(exchange, bodyMap);
+            } else {
+                exchange.getRequestReceiver().receiveFullString((exchange1, message) -> {
+                    Map<String, Object> bodyMap = new HashMap<>();
+                    parseBodyMessage(bodyMap, message);
+                    parseQueryParameters(bodyMap, exchange);
+                    hanadleRequest(exchange, bodyMap);
+                }, StandardCharsets.UTF_8);
+            }
+        } else {
+            Map<String, Object> bodyMap = new HashMap<>();
+            parseQueryParameters(bodyMap, exchange);
+            hanadleRequest(exchange, bodyMap);
+        }
+    }
+
+    private void parseBodyMessage(Map<String, Object> bodyMap, String message) {
+        if ((message = StringUtils.trimToEmpty(message)).isEmpty() == false) {
+            int leftP = message.indexOf('{');
+            if (leftP == 0) {
+                bodyMap.putAll(JsonMapper.string2Map(message));
+            } else if (leftP == -1 && message.indexOf('=') > 0) {
+                decodeParamMap(bodyMap, message);
+            } else {
+                bodyMap.put("BODYSTRING", message);
+            }
+        }
+    }
+
+    static List<String> rpcKeys = Arrays.asList("host", "service", "action", "version", "data");
+
+    @SuppressWarnings({ "unchecked" })
+    private void hanadleRequest(HttpServerExchange exchange, Map<String, Object> bodyMap) {
+        if (log.isInfoEnabled() && !bodyMap.isEmpty()) {
+            log.info("bodyMap: {}", JsonMapper.toJson(bodyMap));
+        }
+        String serviceId = getServiceId(exchange.getRequestURI(), bodyMap);
         Handler handler = RpcStartupHookProvider.serviceMap.get(serviceId);
         if (handler == null) {
             this.handleMissingHandler(exchange, serviceId);
@@ -56,16 +105,23 @@ public class HybridHandler extends AbstractRpcHandler {
         }
         // calling jwt scope verification here. token signature and expiration are done
         verifyJwt(JwtVerifyHandler.config, serviceId, exchange);
-        Object data = HybridUtils.getBodyMap(exchange);
+        // 兼容JsonHandler取data进行验证和处理，处理HybridHandler数据时移除host、version，但保留data
+        if (bodyMap.keySet().containsAll(rpcKeys)) {
+            bodyMap = (Map<String, Object>) bodyMap.get("data");
+        } else {
+            bodyMap.remove("host");
+            bodyMap.remove("version");
+        }
         // calling schema validator here.
-        ByteBuffer error = validate(serviceId, data);
+        ByteBuffer error = validate(serviceId, bodyMap);
         if (error != null) {
             exchange.setStatusCode(StatusCodes.BAD_REQUEST);
             exchange.getResponseSender().send(error);
             return;
         }
+        exchange.putAttachment(AttachmentConstants.REQUEST_BODY, bodyMap);
         // if exchange is not ended, then do the processing.
-        ByteBuffer result = handler.handle(exchange, data);
+        ByteBuffer result = handler.handle(exchange, bodyMap);
         if (result != null) {
             if (log.isDebugEnabled()) {
                 log.debug(result.toString());
@@ -73,6 +129,38 @@ public class HybridHandler extends AbstractRpcHandler {
             this.completeExchange(result, exchange);
         } else if (!exchange.isComplete()) {
             exchange.endExchange();
+        }
+    }
+
+    private void parseQueryParameters(Map<String, Object> bodyMap, HttpServerExchange exchange) {
+        Map<String, Deque<String>> params = exchange.getQueryParameters();
+        for (Entry<String, Deque<String>> entry : params.entrySet()) {
+            String param = entry.getKey();
+            Deque<String> deque = entry.getValue();
+            if (deque.size() > 1) {
+                bodyMap.put(param, new LinkedList<>(deque));
+            } else {
+                bodyMap.put(param, deque.getFirst());
+            }
+        }
+    }
+
+    private void parseFormData(Map<String, Object> bodyMap, FormData formData) {
+        if (formData == null) {
+            return;
+        }
+        for (String name : formData) {
+            Deque<FormValue> deque = formData.get(name);
+            if (deque.size() > 1) {
+                List<Object> values = new LinkedList<>();
+                for (FormValue formValue : deque) {
+                    values.add(formValue.isFileItem() ? formValue : formValue.getValue());
+                }
+                bodyMap.put(name, values);
+            } else {
+                FormValue formValue = deque.getFirst();
+                bodyMap.put(name, formValue.isFileItem() ? formValue : formValue.getValue());
+            }
         }
     }
 
@@ -106,101 +194,18 @@ public class HybridHandler extends AbstractRpcHandler {
         return bf;
     }
 
-    public static String getServiceId(HttpServerExchange exchange) {
-        String requestURI = exchange.getRequestURI();
+    private String getServiceId(String requestURI, Map<String, Object> bodyMap) {
         requestURI = requestURI.substring(HybridRouter.hybridPath.length());
         String[] split = StringUtils.split(requestURI, '/');
-        String host = HybridUtils.getParam(exchange, "host");
-        String service = split.length >= 2 ? split[0] : HybridUtils.getParam(exchange, "service");
-        String action = split.length >= 2 ? split[1] : HybridUtils.getParam(exchange, "action");
-        String version = HybridUtils.getParam(exchange, "version");
-        return (StringUtils.isBlank(host) ? HybridRouter.defaultHost : host) + "/" + service + "/" + action + "/"
-                + (StringUtils.isBlank(version) ? HybridRouter.defaultVersion : version);
+        Object host = bodyMap.get("host");
+        Object service = split.length >= 2 ? split[0] : bodyMap.get("service");
+        Object action = split.length >= 2 ? split[1] : bodyMap.get("action");
+        Object version = bodyMap.get("version");
+        return (host == null ? HybridRouter.defaultHost : host) + "/" + service + "/" + action + "/"
+                + (version == null ? HybridRouter.defaultVersion : version);
     }
 
-    // 解析body为Map<String, 可通过HybridUtils获取参数
-    // Object>，Object可能是String、List<String>、FileItem、List<FileItem>
-    public static boolean parseBody(HttpServerExchange exchange) {
-        Map<String, Object> body = new HashMap<>(4);
-        Map<String, Deque<String>> params = exchange.getQueryParameters();
-        for (Entry<String, Deque<String>> entry : params.entrySet()) {
-            String param = entry.getKey();
-            Deque<String> deque = entry.getValue();
-            if (deque.size() > 1) {
-                body.put(param, new LinkedList<>(deque));
-            } else {
-                body.put(param, deque.getFirst());
-            }
-        }
-        boolean allowBody = Methods.POST.equals(exchange.getRequestMethod())
-                || Methods.PUT.equals(exchange.getRequestMethod()), isForm = false;
-        if (allowBody) {
-            List<Tuple<String, Object>> others = new LinkedList<>();
-            String contentType = exchange.getRequestHeaders().getFirst(Headers.CONTENT_TYPE);
-            try {
-                exchange.startBlocking();// 参考BodyHandler
-                isForm = StringUtils.isNotBlank(contentType) && (contentType.startsWith("multipart/form-data")
-                        || contentType.startsWith("application/x-www-form-urlencoded"));
-                if (isForm) {
-                    FormParserFactory.Builder builder = FormParserFactory.builder();
-                    builder.setDefaultCharset(Constants.DEFAULT_CHARACTER);
-                    FormParserFactory formParserFactory = builder.build();
-                    // MultiPartParserDefinition#93，exchange.addExchangeCompleteListener，在请求结束时关闭parser并删除临时文件
-                    FormDataParser parser = formParserFactory.createParser(exchange);
-                    if (parser != null) {
-                        FormData formData = parser.parseBlocking();
-                        for (String name : formData) {
-                            Deque<FormValue> deque = formData.get(name);
-                            if (deque.size() > 1) {
-                                List<Object> strings = new LinkedList<>();
-                                List<Object> list = new LinkedList<>();
-                                for (FormValue formValue : deque) {
-                                    strings.add(
-                                            formValue.isFileItem() ? formValue.getFileName() : formValue.getValue());
-                                    list.add(formValue.isFileItem() ? formValue : formValue.getValue());
-                                }
-                                body.put(name, strings);
-                                others.add(new Tuple<>(name, list));
-                            } else {
-                                FormValue formValue = deque.getFirst();
-                                body.put(name, formValue.isFileItem() ? formValue.getFileName() : formValue.getValue());
-                                others.add(
-                                        new Tuple<>(name, formValue.isFileItem() ? formValue : formValue.getValue()));
-                            }
-                        }
-                    } else {
-                        isForm = false;
-                    }
-                }
-                if (isForm == false) {
-                    InputStream inputStream = exchange.getInputStream();
-                    String unparsedRequestBody = StringUtils.inputStreamToString(inputStream, StandardCharsets.UTF_8);
-                    if ((unparsedRequestBody = StringUtils.trimToEmpty(unparsedRequestBody)).isEmpty() == false) {
-                        int leftP = unparsedRequestBody.indexOf('{');
-                        if (leftP == 0) {
-                            body.putAll(JsonMapper.string2Map(unparsedRequestBody));
-                        } else if (leftP == -1 && unparsedRequestBody.indexOf('=') > 0) {
-                            body.putAll(decodeParamMap(unparsedRequestBody,
-                                    StandardCharsets.UTF_8));
-                        } else {
-                            others.add(new Tuple<>("BODYSTRING", unparsedRequestBody));
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                log.warn("fail to parse body", e);
-            }
-            if (!body.isEmpty() && log.isDebugEnabled()) {
-                log.debug("body: {}", JsonMapper.toJson(body));
-            }
-            others.forEach(tuple -> body.put(tuple.first, tuple.second));
-        }
-        exchange.putAttachment(AttachmentConstants.REQUEST_BODY, body);
-        return isForm;
-    }
-
-    public static Map<String, String> decodeParamMap(String paramsStr, Charset charset) {
-        Map<String, String> map = new HashMap<>();
+    private void decodeParamMap(Map<String, Object> map, String paramsStr) {
         if (StringUtils.isNotBlank(paramsStr)) {
             String[] params = paramsStr.split("[&]");
             for (String param : params) {
@@ -210,7 +215,6 @@ public class HybridHandler extends AbstractRpcHandler {
                 map.put(name, value);
             }
         }
-        return map;
     }
 
     private void handleMissingHandler(HttpServerExchange exchange, String serviceId) {

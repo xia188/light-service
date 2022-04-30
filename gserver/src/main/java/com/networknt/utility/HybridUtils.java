@@ -9,18 +9,9 @@ import com.networknt.httpstring.AttachmentConstants;
 
 import io.undertow.server.HttpServerExchange;
 import io.undertow.server.handlers.form.FormData.FormValue;
-import io.undertow.util.Headers;
 
 public class HybridUtils {
     private HybridUtils() {
-    }
-
-    /** 判断请求是否表单提交 */
-    public static boolean isForm(HttpServerExchange exchange) {
-        String contentType = exchange.getRequestHeaders().getFirst(Headers.CONTENT_TYPE);
-        boolean isForm = StringUtils.isNotBlank(contentType) && (contentType.startsWith("multipart/form-data")
-                || contentType.startsWith("application/x-www-form-urlencoded"));
-        return isForm;
     }
 
     /** 获取请求参数 */
