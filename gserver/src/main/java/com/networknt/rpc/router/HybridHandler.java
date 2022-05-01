@@ -90,7 +90,7 @@ public class HybridHandler extends AbstractRpcHandler {
         }
     }
 
-    static List<String> rpcKeys = Arrays.asList("host", "service", "action", "version", "data");
+    static List<String> rpcKeys = Arrays.asList("host", "service", "action", "version");
 
     @SuppressWarnings({ "unchecked" })
     private void hanadleRequest(HttpServerExchange exchange, Map<String, Object> bodyMap) {
@@ -107,7 +107,16 @@ public class HybridHandler extends AbstractRpcHandler {
         verifyJwt(JwtVerifyHandler.config, serviceId, exchange);
         // 兼容JsonHandler取data进行验证和处理，处理HybridHandler数据时移除host、version，但保留data
         if (bodyMap.keySet().containsAll(rpcKeys)) {
-            bodyMap = (Map<String, Object>) bodyMap.get("data");
+            rpcKeys.forEach(bodyMap::remove);
+            Map<String, Object> data = (Map<String, Object>) bodyMap.get("data");
+            if (data != null) {
+                bodyMap.entrySet().forEach(entry -> {
+                    if (!"data".equals(entry.getKey())) {
+                        data.put(entry.getKey(), entry.getValue());
+                    }
+                });
+                bodyMap = data;
+            }
         } else {
             bodyMap.remove("host");
             bodyMap.remove("version");
@@ -134,6 +143,10 @@ public class HybridHandler extends AbstractRpcHandler {
 
     private void parseQueryParameters(Map<String, Object> bodyMap, HttpServerExchange exchange) {
         Map<String, Deque<String>> params = exchange.getQueryParameters();
+        if (params.containsKey("cmd")) {
+            String cmd = params.remove("cmd").getFirst();
+            parseBodyMessage(bodyMap, cmd);
+        }
         for (Entry<String, Deque<String>> entry : params.entrySet()) {
             String param = entry.getKey();
             Deque<String> deque = entry.getValue();

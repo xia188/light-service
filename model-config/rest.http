@@ -39,3 +39,9 @@ Content-Type: text/plain
 
 < ./readme.md
 ------WebKitFormBoundary7MA4YWxkTrZu0gW--
+### 兼容get请求里面的cmd参数
+{{hybrid}}/gservice/echo?cmd={"host":"xlongwei.com","service":"gservice","action":"hello","version":"0.0.1","data":{"hello":"你好"}}
+### hybrid风格指定host、version时，bodyMap会自动remove掉host、version，query参数会覆盖body同名参数
+POST {{hybrid}}/gservice/echo?hello=world
+
+{"host":"xlongwei.com","version":"0.0.1","hello":"你好"}
