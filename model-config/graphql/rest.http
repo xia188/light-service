@@ -1,0 +1,39 @@
+@service=http://localhost:8083/graphql
+### hello
+POST {{service}}
+Content-Type: application/json
+
+{"query":"{ hello }"}
+### Query numberHolder.theNumber
+POST {{service}}
+Content-Type: application/json
+
+{"query":"{numberHolder{ theNumber }}"}
+### Query GraphQL
+POST {{service}} HTTP/1.1
+X-Request-Type: GraphQL
+
+query {
+  numberHolder {
+    theNumber
+  }
+}
+### Mutation changeTheNumber
+POST {{service}} HTTP/1.1
+X-Request-Type: GraphQL
+
+mutation {
+  changeTheNumber(newNumber:4) {
+    theNumber
+  }
+}
+### Mutation failToChangeTheNumber
+POST {{service}} HTTP/1.1
+X-Request-Type: GraphQL
+
+mutation {
+  failToChangeTheNumber(newNumber:4) {
+    theNumber
+  }
+}
+

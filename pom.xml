@@ -9,5 +9,6 @@
   <modules>
     <module>gserver</module>
     <module>gservice</module>
+    <module>graphql</module>
   </modules>
 </project>
