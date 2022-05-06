@@ -30,3 +30,21 @@ singletons:
   # SimpleAudit Log important info about the request into audit log
   - com.networknt.audit.AuditHandler
 
+- com.networknt.registry.URL:
+  - com.networknt.registry.URLImpl:
+      protocol: light
+      host: localhost
+      port: 8080
+      path: consul
+      parameters:
+        registryRetryPeriod: '30000'
+        # xlongwei.com.gservice.echo.0.0.1: http://localhost:8083
+- com.networknt.consul.client.ConsulClient:
+  - com.networknt.consul.client.ConsulClientImpl
+- com.networknt.registry.Registry:
+  - com.networknt.consul.ConsulRegistry
+  # - com.networknt.registry.support.DirectRegistry
+- com.networknt.balance.LoadBalance:
+  - com.networknt.balance.RoundRobinLoadBalance
+- com.networknt.cluster.Cluster:
+  - com.networknt.cluster.LightCluster

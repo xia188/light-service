@@ -2,6 +2,8 @@ package com.networknt.rpc.router;
 
 import static com.networknt.rpc.router.JsonHandler.STATUS_HANDLER_NOT_FOUND;
 
+import java.io.IOException;
+import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -12,24 +14,39 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.networknt.client.Http2Client;
+import com.networknt.cluster.Cluster;
 import com.networknt.config.Config;
 import com.networknt.config.JsonMapper;
 import com.networknt.httpstring.AttachmentConstants;
+import com.networknt.httpstring.HttpStringConstants;
 import com.networknt.rpc.Handler;
 import com.networknt.rpc.security.JwtVerifyHandler;
 import com.networknt.schema.JsonSchema;
 import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.SpecVersion;
 import com.networknt.schema.ValidationMessage;
+import com.networknt.server.Server;
+import com.networknt.service.SingletonServiceFactory;
 import com.networknt.status.Status;
 import com.networknt.utility.Constants;
 import com.networknt.utility.HybridUtils;
 import com.networknt.utility.StringUtils;
 import com.networknt.utility.Util;
 
+import org.xnio.OptionMap;
+
+import io.undertow.UndertowOptions;
+import io.undertow.client.ClientCallback;
+import io.undertow.client.ClientConnection;
+import io.undertow.client.ClientExchange;
+import io.undertow.client.ClientRequest;
+import io.undertow.client.ClientResponse;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.server.handlers.form.FormData;
 import io.undertow.server.handlers.form.FormData.FormValue;
@@ -38,6 +55,8 @@ import io.undertow.server.handlers.form.FormParserFactory;
 import io.undertow.util.Headers;
 import io.undertow.util.Methods;
 import io.undertow.util.StatusCodes;
+import io.undertow.util.StringReadChannelListener;
+import io.undertow.util.StringWriteChannelListener;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -61,19 +80,19 @@ public class HybridHandler extends AbstractRpcHandler {
                 Map<String, Object> bodyMap = new HashMap<>();
                 parseFormData(bodyMap, formData);
                 parseQueryParameters(bodyMap, exchange);
-                hanadleRequest(exchange, bodyMap);
+                handleRequest(exchange, bodyMap);
             } else {
                 exchange.getRequestReceiver().receiveFullString((exchange1, message) -> {
                     Map<String, Object> bodyMap = new HashMap<>();
                     parseBodyMessage(bodyMap, message);
                     parseQueryParameters(bodyMap, exchange);
-                    hanadleRequest(exchange, bodyMap);
+                    handleRequest(exchange, bodyMap);
                 }, StandardCharsets.UTF_8);
             }
         } else {
             Map<String, Object> bodyMap = new HashMap<>();
             parseQueryParameters(bodyMap, exchange);
-            hanadleRequest(exchange, bodyMap);
+            handleRequest(exchange, bodyMap);
         }
     }
 
@@ -93,13 +112,24 @@ public class HybridHandler extends AbstractRpcHandler {
     static List<String> rpcKeys = Arrays.asList("host", "service", "action", "version");
 
     @SuppressWarnings({ "unchecked" })
-    private void hanadleRequest(HttpServerExchange exchange, Map<String, Object> bodyMap) {
+    private void handleRequest(HttpServerExchange exchange, Map<String, Object> bodyMap) {
         if (log.isInfoEnabled() && !bodyMap.isEmpty()) {
             log.info("bodyMap: {}", JsonMapper.toJson(bodyMap));
         }
         String serviceId = getServiceId(exchange.getRequestURI(), bodyMap);
         Handler handler = RpcStartupHookProvider.serviceMap.get(serviceId);
         if (handler == null) {
+            if (RpcStartupHookProvider.config.isRegisterService()) {
+                Cluster cluster = SingletonServiceFactory.getBean(Cluster.class);
+                String protocol = Server.getServerConfig().isEnableHttp() ? "http" : "https";
+                String registerServiceId = serviceId.replace('/', '.');// host:path:port
+                String tag = Server.getServerConfig().getEnvironment();
+                String serviceToUrl = cluster.serviceToUrl(protocol, registerServiceId, tag, null);
+                if (serviceToUrl != null) {
+                    this.handleRegistryHandler(exchange, serviceToUrl, bodyMap);
+                    return;
+                }
+            }
             this.handleMissingHandler(exchange, serviceId);
             return;
         }
@@ -139,6 +169,101 @@ public class HybridHandler extends AbstractRpcHandler {
         } else if (!exchange.isComplete()) {
             exchange.endExchange();
         }
+    }
+
+    private void handleRegistryHandler(HttpServerExchange exchange, String serviceToUrl, Map<String, Object> bodyMap) {
+        try {
+            URI uri = new URI(serviceToUrl);
+            boolean isHttp2 = Server.getServerConfig().isEnableHttp2()
+                    && Server.getServerConfig().isEnableHttps();
+            OptionMap optionMap = isHttp2 ? OptionMap.create(UndertowOptions.ENABLE_HTTP2, true)
+                    : OptionMap.EMPTY;
+            Http2Client client = Http2Client.getInstance();
+            ClientConnection connection = client
+                    .borrowConnection(uri, Http2Client.WORKER, client.getDefaultXnioSsl(), Http2Client.BUFFER_POOL,
+                            optionMap)
+                    .get();
+
+            AtomicReference<ClientResponse> reference = new AtomicReference<>();
+            CountDownLatch latch = new CountDownLatch(1);
+
+            ClientRequest request = new ClientRequest().setMethod(Methods.POST).setPath(exchange.getRequestURI());
+            // 缺少此行时报400错误
+            request.getRequestHeaders().put(Headers.HOST, "localhost");
+            // client.propagateHeaders(request, exchange);
+            String tid = exchange.getRequestHeaders().getFirst(HttpStringConstants.TRACEABILITY_ID);
+            String token = exchange.getRequestHeaders().getFirst(Headers.AUTHORIZATION);
+            String cid = exchange.getRequestHeaders().getFirst(HttpStringConstants.CORRELATION_ID);
+            if (tid != null)
+                request.getRequestHeaders().put(HttpStringConstants.TRACEABILITY_ID, tid);
+            if (token != null)
+                request.getRequestHeaders().put(Headers.AUTHORIZATION, token);
+            if (cid != null)
+                request.getRequestHeaders().put(HttpStringConstants.CORRELATION_ID, cid);
+            request.getRequestHeaders().put(Headers.TRANSFER_ENCODING, "chunked");
+            // 这里暂支持json请求转发，文件上传还不会操作
+            String json = JsonMapper.toJson(bodyMap);
+            log.info("post json: {}", json);
+            // client.createClientCallback使用Charset.defaultCharset()，这里复制过来修改了一下
+            // json = new String(json.getBytes(StandardCharsets.UTF_8));
+            connection.sendRequest(request, createClientCallback(reference, latch, json));
+
+            latch.await();
+            ClientResponse clientResponse = reference.get();
+            exchange.setStatusCode(clientResponse.getResponseCode());
+            String response = clientResponse.getAttachment(Http2Client.RESPONSE_BODY);
+            log.info("status={} response={}", clientResponse.getResponseCode(), response);
+            if (response != null)
+                exchange.getResponseSender().send(response);
+        } catch (Exception e) {
+            log.error("Exception:", e);
+            exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
+            exchange.getResponseSender().send(e.getMessage());
+        }
+    }
+
+    private ClientCallback<ClientExchange> createClientCallback(final AtomicReference<ClientResponse> reference,
+            final CountDownLatch latch, final String requestBody) {
+        return new ClientCallback<ClientExchange>() {
+            @Override
+            public void completed(ClientExchange result) {
+                new StringWriteChannelListener(requestBody, StandardCharsets.UTF_8).setup(result.getRequestChannel());
+                result.setResponseListener(new ClientCallback<ClientExchange>() {
+                    @Override
+                    public void completed(ClientExchange result) {
+                        reference.set(result.getResponse());
+                        new StringReadChannelListener(Http2Client.BUFFER_POOL) {
+                            @Override
+                            protected void stringDone(String string) {
+                                if (log.isTraceEnabled()) {
+                                    log.trace("Service call response = {}", string);
+                                }
+                                result.getResponse().putAttachment(Http2Client.RESPONSE_BODY, string);
+                                latch.countDown();
+                            }
+
+                            @Override
+                            protected void error(IOException e) {
+                                log.error("IOException:", e);
+                                latch.countDown();
+                            }
+                        }.setup(result.getResponseChannel());
+                    }
+
+                    @Override
+                    public void failed(IOException e) {
+                        log.error("IOException:", e);
+                        latch.countDown();
+                    }
+                });
+            }
+
+            @Override
+            public void failed(IOException e) {
+                log.error("IOException:", e);
+                latch.countDown();
+            }
+        };
     }
 
     private void parseQueryParameters(Map<String, Object> bodyMap, HttpServerExchange exchange) {

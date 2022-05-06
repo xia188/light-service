@@ -45,3 +45,29 @@ Content-Type: text/plain
 POST {{hybrid}}/gservice/echo?hello=world
 
 {"host":"xlongwei.com","version":"0.0.1","hello":"你好"}
+### enableRegistry
+# @consul=https://api.xlongwei.com
+@consul=http://115.28.229.158:8500
+PUT {{consul}}/v1/agent/service/register
+Host: localhost
+Transfer-Encoding: chunked
+
+{"ID":"10.11.218.43:com.xlongwei.gserver-3.0.1:8083","Name":"com.xlongwei.gserver-3.0.1","Tags":[""],"Address":"10.11.218.43","Port":8083,"Check":{"CheckID":"check-10.11.218.43:com.xlongwei.gserver-3.0.1:8083","DeregisterCriticalServiceAfter":"2m","TTL":"10s"}}
+### lookupHealthService=/v1/health/service/{serviceName}
+GET {{consul}}/v1/health/service/com.xlongwei.gserver-3.0.1?passing&wait=600s&index=0
+# "Service": {
+#       "ID": "10.11.218.43:com.xlongwei.gserver-3.0.1:8083",
+#       "Service": "com.xlongwei.gserver-3.0.1",
+#       "Tags": [
+#         ""
+#       ],
+#       "Address": "10.11.218.43",
+#       "Meta": null,
+#       "Port": 8083,
+#       "EnableTagOverride": false,
+#       "CreateIndex": 7124,
+#       "ModifyIndex": 7124
+#     }
+### unregisterService=/v1/agent/service/deregister/{serviceId}
+PUT {{consul}}/v1/agent/service/deregister/10.11.218.43:com.xlongwei.gserver-3.0.1:8083
+

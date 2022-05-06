@@ -5,7 +5,7 @@
 ip: 0.0.0.0
 
 # Http port if enableHttp is true. It will be ignored if dynamicPort is true.
-httpPort:  8083
+httpPort:  ${server.httpPort:8083}
 
 # Enable HTTP should be false by default. It should be only used for testing with clients or tools
 # that don't support https or very hard to import the certificate. Otherwise, https should be used.
@@ -37,7 +37,7 @@ serviceId: com.xlongwei.gserver-3.0.1
 
 # Flag to enable self service registration. This should be turned on on official test and production. And
 # dyanmicPort should be enabled if any orchestration tool is used like Kubernetes.
-enableRegistry: false
+enableRegistry: ${server.enableRegistry:false}
 
 # Dynamic port is used in situation that multiple services will be deployed on the same host and normally
 # you will have enableRegistry set to true so that other services can find the dynamic port service. When
