@@ -1,0 +1,4 @@
+# memory btree binary
+search: btree
+# curl -O http://t.xlongwei.com/softwares/library/ip2region.db
+dbFile: ../library/ip2region.db

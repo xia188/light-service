@@ -1,0 +1,22 @@
+{
+  "host": "xlongwei.com",
+  "service": "ip",
+  "action": [
+    {
+      "name": "region",
+      "version": "0.0.1",
+      "handler": "Region",
+      "scope": "ip.r",
+      "schema": {
+        "title": "Service",
+        "type": "object",
+        "properties": {
+          "ip": {
+            "type": "string"
+          }
+        },
+        "required": []
+      }
+    }
+  ]
+}

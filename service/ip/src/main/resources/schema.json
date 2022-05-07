@@ -1,0 +1,10 @@
+{"xlongwei.com/ip/region/0.0.1":{"schema": {
+        "title": "Service",
+        "type": "object",
+        "properties": {
+          "ip": {
+            "type": "string"
+          }
+        },
+        "required": []
+      },"scope": "ip.r"}}

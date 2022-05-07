@@ -1,0 +1,8 @@
+@host=http://localhost:8083
+@hybrid={{host}}/hybrid
+### get
+{{hybrid}}/ip/region
+### post
+POST {{hybrid}}/ip/region
+
+ip=121.12.21.23
