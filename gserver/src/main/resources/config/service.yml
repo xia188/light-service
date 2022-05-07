@@ -38,12 +38,14 @@ singletons:
       path: consul
       parameters:
         registryRetryPeriod: '30000'
-        # xlongwei.com.gservice.echo.0.0.1: http://localhost:8083
+        # 直连时手动配置服务端点，逗号分隔多个地址
+        xlongwei.com.gservice.echo.0.0.1: http://localhost:8083
+        xlongwei.com.gservice.hello.0.0.1: http://localhost:8083,http://localhost:8084
 - com.networknt.consul.client.ConsulClient:
   - com.networknt.consul.client.ConsulClientImpl
 - com.networknt.registry.Registry:
-  - com.networknt.consul.ConsulRegistry
-  # - com.networknt.registry.support.DirectRegistry
+  # - com.networknt.consul.ConsulRegistry
+  - com.networknt.registry.support.DirectRegistry
 - com.networknt.balance.LoadBalance:
   - com.networknt.balance.RoundRobinLoadBalance
 - com.networknt.cluster.Cluster:

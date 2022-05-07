@@ -2,6 +2,7 @@ package com.networknt.rpc.router;
 
 import static com.networknt.rpc.router.JsonHandler.STATUS_HANDLER_NOT_FOUND;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.ByteBuffer;
@@ -20,10 +21,13 @@ import java.util.concurrent.atomic.AtomicReference;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.networknt.client.Http2Client;
+import com.networknt.client.listener.ByteBufferReadChannelListener;
+import com.networknt.client.listener.ByteBufferWriteChannelListener;
 import com.networknt.cluster.Cluster;
 import com.networknt.config.Config;
 import com.networknt.config.JsonMapper;
 import com.networknt.httpstring.AttachmentConstants;
+import com.networknt.httpstring.ContentType;
 import com.networknt.httpstring.HttpStringConstants;
 import com.networknt.rpc.Handler;
 import com.networknt.rpc.security.JwtVerifyHandler;
@@ -36,9 +40,13 @@ import com.networknt.service.SingletonServiceFactory;
 import com.networknt.status.Status;
 import com.networknt.utility.Constants;
 import com.networknt.utility.HybridUtils;
+import com.networknt.utility.NioUtils;
 import com.networknt.utility.StringUtils;
 import com.networknt.utility.Util;
 
+import org.xnio.ChannelExceptionHandler;
+import org.xnio.ChannelListener;
+import org.xnio.ChannelListeners;
 import org.xnio.OptionMap;
 
 import io.undertow.UndertowOptions;
@@ -188,38 +196,164 @@ public class HybridHandler extends AbstractRpcHandler {
             CountDownLatch latch = new CountDownLatch(1);
 
             ClientRequest request = new ClientRequest().setMethod(Methods.POST).setPath(exchange.getRequestURI());
+            // client.propagateHeaders(request, exchange); cId可用于日志输出，在微服务之间关联请求日志
+            propagateHeaders(request, exchange);
             // 缺少此行时报400错误
             request.getRequestHeaders().put(Headers.HOST, "localhost");
-            // client.propagateHeaders(request, exchange);
-            String tid = exchange.getRequestHeaders().getFirst(HttpStringConstants.TRACEABILITY_ID);
-            String token = exchange.getRequestHeaders().getFirst(Headers.AUTHORIZATION);
-            String cid = exchange.getRequestHeaders().getFirst(HttpStringConstants.CORRELATION_ID);
-            if (tid != null)
-                request.getRequestHeaders().put(HttpStringConstants.TRACEABILITY_ID, tid);
-            if (token != null)
-                request.getRequestHeaders().put(Headers.AUTHORIZATION, token);
-            if (cid != null)
-                request.getRequestHeaders().put(HttpStringConstants.CORRELATION_ID, cid);
             request.getRequestHeaders().put(Headers.TRANSFER_ENCODING, "chunked");
-            // 这里暂支持json请求转发，文件上传还不会操作
             String json = JsonMapper.toJson(bodyMap);
-            log.info("post json: {}", json);
-            // client.createClientCallback使用Charset.defaultCharset()，这里复制过来修改了一下
-            // json = new String(json.getBytes(StandardCharsets.UTF_8));
-            connection.sendRequest(request, createClientCallback(reference, latch, json));
+            boolean hasFileUpload = bodyMap.values().stream().filter(value -> value instanceof FormValue).findAny()
+                    .isPresent();
+            log.info("hasFileUpload={} post={}", hasFileUpload, json);
+            if (hasFileUpload) {
+                String boundary = "gserver_fileupload";
+                // 参考body模块BodyHandlerTest#testPostFormMultipart，以及hutool的MultipartBody，文件会读入内存可能影响性能
+                request.getRequestHeaders().put(Headers.CONTENT_TYPE,
+                        "multipart/form-data; boundary=" + boundary);
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                writeBodyMap(baos, bodyMap, boundary);
+                connection.sendRequest(request,
+                        createClientCallback(reference, latch, ByteBuffer.wrap(baos.toByteArray())));
+            } else {
+                request.getRequestHeaders().put(Headers.CONTENT_TYPE, ContentType.APPLICATION_JSON.value());
+                // client.createClientCallback使用Charset.defaultCharset()，这里复制过来修改了一下
+                // json = new String(json.getBytes(StandardCharsets.UTF_8));
+                connection.sendRequest(request, createClientCallback(reference, latch, json));
+            }
 
             latch.await();
             ClientResponse clientResponse = reference.get();
             exchange.setStatusCode(clientResponse.getResponseCode());
-            String response = clientResponse.getAttachment(Http2Client.RESPONSE_BODY);
+            String response = null;
+            if (hasFileUpload) {
+                ByteBuffer buffer = clientResponse.getAttachment(Http2Client.BUFFER_BODY);
+                response = buffer == null ? null : new String(buffer.array(), StandardCharsets.UTF_8);
+            } else {
+                response = clientResponse.getAttachment(Http2Client.RESPONSE_BODY);
+            }
             log.info("status={} response={}", clientResponse.getResponseCode(), response);
-            if (response != null)
+            if (response != null) {
                 exchange.getResponseSender().send(response);
+            } else {
+                exchange.endExchange();
+            }
         } catch (Exception e) {
             log.error("Exception:", e);
             exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
             exchange.getResponseSender().send(e.getMessage());
         }
+    }
+
+    private void propagateHeaders(ClientRequest request, HttpServerExchange exchange) {
+        String tid = exchange.getRequestHeaders().getFirst(HttpStringConstants.TRACEABILITY_ID);
+        String token = exchange.getRequestHeaders().getFirst(Headers.AUTHORIZATION);
+        String cid = exchange.getRequestHeaders().getFirst(HttpStringConstants.CORRELATION_ID);
+        if (tid != null) {
+            request.getRequestHeaders().put(HttpStringConstants.TRACEABILITY_ID, tid);
+        }
+        if (token != null) {
+            request.getRequestHeaders().put(Headers.AUTHORIZATION, token);
+        }
+        if (cid != null) {
+            request.getRequestHeaders().put(HttpStringConstants.CORRELATION_ID, cid);
+        }
+    }
+
+    private void writeBodyMap(ByteArrayOutputStream baos, Map<String, Object> bodyMap, String boundary)
+            throws Exception {
+        for (Entry<String, Object> entry : bodyMap.entrySet()) {
+            Object value = entry.getValue();
+            if (value instanceof String) {
+                writeBodyMapString(baos, entry.getKey(), (String) value, boundary);
+            } else if (value instanceof List) {
+                List<?> list = (List<?>) value;
+                for (Object obj : list) {
+                    if (obj instanceof String) {
+                        writeBodyMapString(baos, entry.getKey(), (String) obj, boundary);
+                    } else if (obj instanceof FormValue) {
+                        writeBodyMapFile(baos, entry.getKey(), (FormValue) obj, boundary);
+                    }
+                }
+            } else if (value instanceof FormValue) {
+                writeBodyMapFile(baos, entry.getKey(), (FormValue) entry.getValue(), boundary);
+            }
+        }
+        // 文件上传结束标记--boundary--\r\n
+        baos.write(("--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
+    }
+
+    private void writeBodyMapFile(ByteArrayOutputStream baos, String name, FormValue file, String boundary)
+            throws Exception {
+        StringBuilder sb = new StringBuilder("--" + boundary + "\r\n");
+        sb.append("Content-Disposition: form-data; name=\"" + name + "\"; filename=\""
+                + file.getFileName() + "\"\r\n");
+        // Content-Type可选，hutool能根据扩展名匹配正确类型，默认二进制或不传也能成功
+        // sb.append("Content-Type: application/octet-stream\r\n");
+        baos.write(sb.toString().getBytes(StandardCharsets.UTF_8));
+        baos.write("\r\n".getBytes(StandardCharsets.UTF_8));
+        baos.write(NioUtils.toByteArray(file.getFileItem().getInputStream()));
+        baos.write("\r\n".getBytes(StandardCharsets.UTF_8));
+    }
+
+    private void writeBodyMapString(ByteArrayOutputStream baos, String name, String value, String boundary)
+            throws Exception {
+        StringBuilder sb = new StringBuilder("--" + boundary + "\r\n");
+        sb.append("Content-Disposition: form-data; name=\"" + name + "\"\r\n");
+        baos.write(sb.toString().getBytes(StandardCharsets.UTF_8));
+        baos.write("\r\n".getBytes(StandardCharsets.UTF_8));
+        baos.write(value.getBytes());
+        baos.write("\r\n".getBytes(StandardCharsets.UTF_8));
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private ClientCallback<ClientExchange> createClientCallback(final AtomicReference<ClientResponse> reference,
+            final CountDownLatch latch, final ByteBuffer requestBody) {
+        return new ClientCallback<ClientExchange>() {
+            public void completed(ClientExchange result) {
+                new ByteBufferWriteChannelListener(requestBody).setup(result.getRequestChannel());
+                result.setResponseListener(new ClientCallback<ClientExchange>() {
+                    public void completed(final ClientExchange result) {
+                        reference.set(result.getResponse());
+                        (new ByteBufferReadChannelListener(result.getConnection().getBufferPool()) {
+                            protected void bufferDone(List<Byte> out) {
+                                byte[] byteArray = new byte[out.size()];
+                                int index = 0;
+                                for (byte b : out) {
+                                    byteArray[index++] = b;
+                                }
+                                result.getResponse().putAttachment(Http2Client.BUFFER_BODY,
+                                        (ByteBuffer.wrap(byteArray)));
+                                latch.countDown();
+                            }
+
+                            protected void error(IOException e) {
+                                latch.countDown();
+                            }
+                        }).setup(result.getResponseChannel());
+                    }
+
+                    public void failed(IOException e) {
+                        latch.countDown();
+                    }
+                });
+
+                try {
+                    result.getRequestChannel().shutdownWrites();
+                    if (!result.getRequestChannel().flush()) {
+                        result.getRequestChannel().getWriteSetter().set(ChannelListeners
+                                .flushingChannelListener((ChannelListener) null, (ChannelExceptionHandler) null));
+                        result.getRequestChannel().resumeWrites();
+                    }
+                } catch (IOException var3) {
+                    latch.countDown();
+                }
+
+            }
+
+            public void failed(IOException e) {
+                latch.countDown();
+            }
+        };
     }
 
     private ClientCallback<ClientExchange> createClientCallback(final AtomicReference<ClientResponse> reference,

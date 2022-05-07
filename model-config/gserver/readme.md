@@ -72,7 +72,8 @@ hybrid的bodyMap是将FormData表单或json正文处理为Map<String,Object>，�
 
 schema.json可以严格地校验json正文里的boolean、number等类型，但混合queryParameter之后的bodyMap，param对应的value类型可能是string，因此通常需使用oneOf:[{"type":"boolean"},{"type":"string"}]来校验，若仅使用其中一种类型则另一种类型的值会校验失败。
 
-### enableRegistry
+### enableRegistry与DirectRegistry
+direct直连相比consul要简单一些，代码已调整为优先使用直连。环境变量控制说明：gserver网关，rpc-router.registerService=true；gservice直连，默认false即可；gservice注册consul，rpc-router.registerService=true，server.enableRegistry=true。
 
 1. rpc-router.yml，配置registerService: true，注册Handler到Server，由后者注册到registry，可通过环境变量rpc-router.registerService控制
 2. server.yml，配置enableRegistry: true，注册服务到registry，可通过环境变量server.enableRegistry控制
@@ -84,9 +85,32 @@ schema.json可以严格地校验json正文里的boolean、number等类型，但�
 8. secret.yml，配置consulToken=，默认consul不要求token。service.yml可以配置直连服务，这样就可以不依赖consul
 
 测试：
-consul运行，
+consul运行，直连时不需要
 ```
 setsid consul agent -server -bootstrap-expect 1 -ui -node=dc1 -bind 127.0.0.1 -client=0.0.0.0 -data-dir /soft/consul/data -config-dir /soft/consul/config &> /var/log/consul.log &
+```
+service.yml配置，gservice时绑定到gserver一起运行的，它们可以使用同一套配置，但是独立运行时需避免端口重复
+```
+- com.networknt.registry.URL:
+  - com.networknt.registry.URLImpl:
+      protocol: light
+      host: localhost
+      port: 8080
+      path: consul
+      parameters:
+        registryRetryPeriod: '30000'
+        # 直连时手动配置服务端点，逗号分隔多个地址
+        xlongwei.com.gservice.echo.0.0.1: http://localhost:8083
+        xlongwei.com.gservice.hello.0.0.1: http://localhost:8083,http://localhost:8084
+- com.networknt.consul.client.ConsulClient:
+  - com.networknt.consul.client.ConsulClientImpl
+- com.networknt.registry.Registry:
+  # - com.networknt.consul.ConsulRegistry
+  - com.networknt.registry.support.DirectRegistry
+- com.networknt.balance.LoadBalance:
+  - com.networknt.balance.RoundRobinLoadBalance
+- com.networknt.cluster.Cluster:
+  - com.networknt.cluster.LightCluster
 ```
 gserver转发请求：监听8082端口，配置consul地址（直连时不需要）
 ```
@@ -99,13 +123,13 @@ gserver转发请求：监听8082端口，配置consul地址（直连时不需要
     "cwd": "${workspaceFolder}/light-service",
     "vmArgs": "-Dlight-4j-config-dir=gserver/src/main/resources/config -Dlogback.configurationFile=gserver/src/test/resources/logback-test.xml",
     "env": {
-        "rpc-router.registerService":true,
-        "consul.consulUrl":"http://115.28.229.158:8500",
-        "server.httpPort":8082
+        "rpc-router.registerService":true, //gserver作网关时，没有Handler需要注册，打开此开关可以通过cluster调用其他服务
+        // "consul.consulUrl":"http://115.28.229.158:8500", //直连时不需要consul
+        "server.httpPort":8082 //修改../rest.http里@host=http://localhost:8082即可通过gserver访问8083的gservice
     }
 }
 ```
-gservice注册服务：监听8083端口（默认值），配置consul地址，开启registry注册
+gservice注册服务：监听8083端口（默认值），配置consul地址（直连时不需要），开启registry注册
 ```
 {
     "type": "java",
@@ -116,9 +140,10 @@ gservice注册服务：监听8083端口（默认值），配置consul地址，�
     "cwd": "${workspaceFolder}/light-service",
     "vmArgs": "-Dlight-4j-config-dir=gserver/src/main/resources/config -Dlogback.configurationFile=gserver/src/test/resources/logback-test.xml",
     "env": {
-        "consul.consulUrl":"http://115.28.229.158:8500",
-        "rpc-router.registerService":true,
-        "server.enableRegistry":true
+        // "consul.consulUrl":"http://115.28.229.158:8500", //直连时不需要consul
+        // "rpc-router.registerService":true, //是否委托Server将Handler注册到consul，直连时不需要
+        // "server.enableRegistry":true //直连时不需要，使用consul时则这两个开关都打开
+        // "server.httpPort":8084 //默认8083运行一个gservice，然后8084再运行一个，访问8082的gserver时即可两个gservice轮流调。如果没有运行8084的gservice，则请求会有半数失败
     }
 }
 ```
