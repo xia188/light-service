@@ -3,7 +3,6 @@ package com.networknt.rpc.router;
 import static com.networknt.rpc.router.JsonHandler.STATUS_HANDLER_NOT_FOUND;
 
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -21,8 +20,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.networknt.client.Http2Client;
-import com.networknt.client.listener.ByteBufferReadChannelListener;
-import com.networknt.client.listener.ByteBufferWriteChannelListener;
 import com.networknt.cluster.Cluster;
 import com.networknt.config.Config;
 import com.networknt.config.JsonMapper;
@@ -44,15 +41,10 @@ import com.networknt.utility.NioUtils;
 import com.networknt.utility.StringUtils;
 import com.networknt.utility.Util;
 
-import org.xnio.ChannelExceptionHandler;
-import org.xnio.ChannelListener;
-import org.xnio.ChannelListeners;
 import org.xnio.OptionMap;
 
 import io.undertow.UndertowOptions;
-import io.undertow.client.ClientCallback;
 import io.undertow.client.ClientConnection;
-import io.undertow.client.ClientExchange;
 import io.undertow.client.ClientRequest;
 import io.undertow.client.ClientResponse;
 import io.undertow.server.HttpServerExchange;
@@ -63,8 +55,6 @@ import io.undertow.server.handlers.form.FormParserFactory;
 import io.undertow.util.Headers;
 import io.undertow.util.Methods;
 import io.undertow.util.StatusCodes;
-import io.undertow.util.StringReadChannelListener;
-import io.undertow.util.StringWriteChannelListener;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -72,8 +62,9 @@ public class HybridHandler extends AbstractRpcHandler {
 
     @Override
     public void handleRequest(HttpServerExchange exchange) throws Exception {
-        if (Methods.POST.equals(exchange.getRequestMethod())
-                || Methods.PUT.equals(exchange.getRequestMethod())) {
+        if (Methods.POST.equals(exchange.getRequestMethod())// create
+                || Methods.PUT.equals(exchange.getRequestMethod())// update all
+                || Methods.PATCH.equals(exchange.getRequestMethod())) {// update partial
             String contentType = exchange.getRequestHeaders().getFirst(Headers.CONTENT_TYPE);
             if (contentType != null && (contentType.startsWith("multipart/form-data")
                     || contentType.startsWith("application/x-www-form-urlencoded"))) {
@@ -179,18 +170,18 @@ public class HybridHandler extends AbstractRpcHandler {
         }
     }
 
+    static Http2Client client = Http2Client.getInstance();
+    static boolean isHttp2 = Server.getServerConfig().isEnableHttp2()
+            && Server.getServerConfig().isEnableHttps();
+    static OptionMap optionMap = isHttp2 ? OptionMap.create(UndertowOptions.ENABLE_HTTP2, true)
+            : OptionMap.EMPTY;
+
     private void handleRegistryHandler(HttpServerExchange exchange, String serviceToUrl, Map<String, Object> bodyMap) {
+        ClientConnection connection = null;
         try {
             URI uri = new URI(serviceToUrl);
-            boolean isHttp2 = Server.getServerConfig().isEnableHttp2()
-                    && Server.getServerConfig().isEnableHttps();
-            OptionMap optionMap = isHttp2 ? OptionMap.create(UndertowOptions.ENABLE_HTTP2, true)
-                    : OptionMap.EMPTY;
-            Http2Client client = Http2Client.getInstance();
-            ClientConnection connection = client
-                    .borrowConnection(uri, Http2Client.WORKER, client.getDefaultXnioSsl(), Http2Client.BUFFER_POOL,
-                            optionMap)
-                    .get();
+            connection = client.borrowConnection(uri, Http2Client.WORKER, client.getDefaultXnioSsl(),
+                    Http2Client.BUFFER_POOL, optionMap).get();
 
             AtomicReference<ClientResponse> reference = new AtomicReference<>();
             CountDownLatch latch = new CountDownLatch(1);
@@ -213,24 +204,20 @@ public class HybridHandler extends AbstractRpcHandler {
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
                 writeBodyMap(baos, bodyMap, boundary);
                 connection.sendRequest(request,
-                        createClientCallback(reference, latch, ByteBuffer.wrap(baos.toByteArray())));
+                        client.byteBufferClientCallback(reference, latch, ByteBuffer.wrap(baos.toByteArray())));
             } else {
                 request.getRequestHeaders().put(Headers.CONTENT_TYPE, ContentType.APPLICATION_JSON.value());
-                // client.createClientCallback使用Charset.defaultCharset()，这里复制过来修改了一下
-                // json = new String(json.getBytes(StandardCharsets.UTF_8));
-                connection.sendRequest(request, createClientCallback(reference, latch, json));
+                // client.createClientCallback使用Charset.defaultCharset()，这里使用ByteBuffer传字节
+                connection.sendRequest(request, client.byteBufferClientCallback(reference, latch,
+                        ByteBuffer.wrap(json.getBytes(StandardCharsets.UTF_8))));
             }
 
             latch.await();
             ClientResponse clientResponse = reference.get();
             exchange.setStatusCode(clientResponse.getResponseCode());
-            String response = null;
-            if (hasFileUpload) {
-                ByteBuffer buffer = clientResponse.getAttachment(Http2Client.BUFFER_BODY);
-                response = buffer == null ? null : new String(buffer.array(), StandardCharsets.UTF_8);
-            } else {
-                response = clientResponse.getAttachment(Http2Client.RESPONSE_BODY);
-            }
+            String response = null; // clientResponse.getAttachment(Http2Client.RESPONSE_BODY);
+            ByteBuffer buffer = clientResponse.getAttachment(Http2Client.BUFFER_BODY);
+            response = buffer == null ? null : new String(buffer.array(), StandardCharsets.UTF_8);
             log.info("status={} response={}", clientResponse.getResponseCode(), response);
             if (response != null) {
                 exchange.getResponseSender().send(response);
@@ -241,6 +228,8 @@ public class HybridHandler extends AbstractRpcHandler {
             log.error("Exception:", e);
             exchange.setStatusCode(StatusCodes.INTERNAL_SERVER_ERROR);
             exchange.getResponseSender().send(e.getMessage());
+        } finally {
+            client.returnConnection(connection);
         }
     }
 
@@ -282,6 +271,8 @@ public class HybridHandler extends AbstractRpcHandler {
         baos.write(("--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
     }
 
+    static byte[] CRLF = "\r\n".getBytes(StandardCharsets.UTF_8);
+
     private void writeBodyMapFile(ByteArrayOutputStream baos, String name, FormValue file, String boundary)
             throws Exception {
         StringBuilder sb = new StringBuilder("--" + boundary + "\r\n");
@@ -290,9 +281,9 @@ public class HybridHandler extends AbstractRpcHandler {
         // Content-Type可选，hutool能根据扩展名匹配正确类型，默认二进制或不传也能成功
         // sb.append("Content-Type: application/octet-stream\r\n");
         baos.write(sb.toString().getBytes(StandardCharsets.UTF_8));
-        baos.write("\r\n".getBytes(StandardCharsets.UTF_8));
+        baos.write(CRLF);
         baos.write(NioUtils.toByteArray(file.getFileItem().getInputStream()));
-        baos.write("\r\n".getBytes(StandardCharsets.UTF_8));
+        baos.write(CRLF);
     }
 
     private void writeBodyMapString(ByteArrayOutputStream baos, String name, String value, String boundary)
@@ -300,104 +291,9 @@ public class HybridHandler extends AbstractRpcHandler {
         StringBuilder sb = new StringBuilder("--" + boundary + "\r\n");
         sb.append("Content-Disposition: form-data; name=\"" + name + "\"\r\n");
         baos.write(sb.toString().getBytes(StandardCharsets.UTF_8));
-        baos.write("\r\n".getBytes(StandardCharsets.UTF_8));
+        baos.write(CRLF);
         baos.write(value.getBytes());
-        baos.write("\r\n".getBytes(StandardCharsets.UTF_8));
-    }
-
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    private ClientCallback<ClientExchange> createClientCallback(final AtomicReference<ClientResponse> reference,
-            final CountDownLatch latch, final ByteBuffer requestBody) {
-        return new ClientCallback<ClientExchange>() {
-            public void completed(ClientExchange result) {
-                new ByteBufferWriteChannelListener(requestBody).setup(result.getRequestChannel());
-                result.setResponseListener(new ClientCallback<ClientExchange>() {
-                    public void completed(final ClientExchange result) {
-                        reference.set(result.getResponse());
-                        (new ByteBufferReadChannelListener(result.getConnection().getBufferPool()) {
-                            protected void bufferDone(List<Byte> out) {
-                                byte[] byteArray = new byte[out.size()];
-                                int index = 0;
-                                for (byte b : out) {
-                                    byteArray[index++] = b;
-                                }
-                                result.getResponse().putAttachment(Http2Client.BUFFER_BODY,
-                                        (ByteBuffer.wrap(byteArray)));
-                                latch.countDown();
-                            }
-
-                            protected void error(IOException e) {
-                                latch.countDown();
-                            }
-                        }).setup(result.getResponseChannel());
-                    }
-
-                    public void failed(IOException e) {
-                        latch.countDown();
-                    }
-                });
-
-                try {
-                    result.getRequestChannel().shutdownWrites();
-                    if (!result.getRequestChannel().flush()) {
-                        result.getRequestChannel().getWriteSetter().set(ChannelListeners
-                                .flushingChannelListener((ChannelListener) null, (ChannelExceptionHandler) null));
-                        result.getRequestChannel().resumeWrites();
-                    }
-                } catch (IOException var3) {
-                    latch.countDown();
-                }
-
-            }
-
-            public void failed(IOException e) {
-                latch.countDown();
-            }
-        };
-    }
-
-    private ClientCallback<ClientExchange> createClientCallback(final AtomicReference<ClientResponse> reference,
-            final CountDownLatch latch, final String requestBody) {
-        return new ClientCallback<ClientExchange>() {
-            @Override
-            public void completed(ClientExchange result) {
-                new StringWriteChannelListener(requestBody, StandardCharsets.UTF_8).setup(result.getRequestChannel());
-                result.setResponseListener(new ClientCallback<ClientExchange>() {
-                    @Override
-                    public void completed(ClientExchange result) {
-                        reference.set(result.getResponse());
-                        new StringReadChannelListener(Http2Client.BUFFER_POOL) {
-                            @Override
-                            protected void stringDone(String string) {
-                                if (log.isTraceEnabled()) {
-                                    log.trace("Service call response = {}", string);
-                                }
-                                result.getResponse().putAttachment(Http2Client.RESPONSE_BODY, string);
-                                latch.countDown();
-                            }
-
-                            @Override
-                            protected void error(IOException e) {
-                                log.error("IOException:", e);
-                                latch.countDown();
-                            }
-                        }.setup(result.getResponseChannel());
-                    }
-
-                    @Override
-                    public void failed(IOException e) {
-                        log.error("IOException:", e);
-                        latch.countDown();
-                    }
-                });
-            }
-
-            @Override
-            public void failed(IOException e) {
-                log.error("IOException:", e);
-                latch.countDown();
-            }
-        };
+        baos.write(CRLF);
     }
 
     private void parseQueryParameters(Map<String, Object> bodyMap, HttpServerExchange exchange) {
@@ -479,9 +375,9 @@ public class HybridHandler extends AbstractRpcHandler {
 
     private void decodeParamMap(Map<String, Object> map, String paramsStr) {
         if (StringUtils.isNotBlank(paramsStr)) {
-            String[] params = paramsStr.split("[&]");
+            String[] params = StringUtils.split(paramsStr, '&');
             for (String param : params) {
-                String[] split = param.split("[=]");
+                String[] split = StringUtils.split(param, '=');
                 String name = Util.urlDecode(split[0]);
                 String value = Util.urlDecode(split[1]);
                 map.put(name, value);
