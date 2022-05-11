@@ -1,0 +1,10 @@
+@host=http://localhost:8083
+@hybrid={{host}}/hybrid
+@bank={{hybrid}}/bank
+@card={{bank}}/card
+### get
+{{card}}?bankCardNumber=4518115496
+### post
+POST {{card}}
+
+bankCardNumber=451811549678

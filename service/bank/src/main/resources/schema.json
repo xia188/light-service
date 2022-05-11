@@ -1,0 +1,10 @@
+{"xlongwei.com/bank/card/0.0.1":{"schema": {
+        "title": "Service",
+        "type": "object",
+        "properties": {
+          "bankCardNumber": {
+            "type": "string"
+          }
+        },
+        "required": []
+      },"scope": "bank.r"}}

@@ -1,0 +1,25 @@
+{
+  "rootPackage": "com.xlongwei.bank",
+  "handlerPackage": "com.xlongwei.bank.handler",
+  "modelPackage": "com.xlongwei.bank.model",
+  "artifactId": "bank",
+  "groupId": "com.xlongwei",
+  "name": "bank",
+  "version": "3.0.1",
+  "overwriteHandler": true,
+  "overwriteHandlerTest": true,
+  "httpPort": 8083,
+  "enableHttp": true,
+  "httpsPort": 8443,
+  "enableHttps": false,
+  "enableHttp2": false,
+  "enableRegistry": false,
+  "eclipseIDE": false,
+  "dockerOrganization": "xlongwei",
+  "enableErrorProne": false,
+  "supportDb": false,
+  "dbInfo": {
+    "name": "mysql"
+  },
+  "supportClient": false
+}

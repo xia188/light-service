@@ -8,5 +8,6 @@
   <name>service</name>
   <modules>
     <module>ip</module>
+    <module>bank</module>
   </modules>
 </project>

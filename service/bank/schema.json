@@ -1,0 +1,22 @@
+{
+  "host": "xlongwei.com",
+  "service": "bank",
+  "action": [
+    {
+      "name": "card",
+      "version": "0.0.1",
+      "handler": "Card",
+      "scope": "bank.r",
+      "schema": {
+        "title": "Service",
+        "type": "object",
+        "properties": {
+          "bankCardNumber": {
+            "type": "string"
+          }
+        },
+        "required": []
+      }
+    }
+  ]
+}
