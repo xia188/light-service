@@ -2,8 +2,7 @@
 package com.xlongwei.ip.handler;
 
 import java.nio.ByteBuffer;
-import java.util.Collections;
-import java.util.LinkedHashMap;
+import java.util.HashMap;
 import java.util.Map;
 
 import com.networknt.config.Config;
@@ -13,13 +12,14 @@ import com.networknt.rpc.router.ServiceHandler;
 import com.networknt.utility.HybridUtils;
 import com.networknt.utility.StringUtils;
 import com.xlongwei.ip.ThrowingFunction;
-import com.xlongwei.ip.Util;
 
 import org.lionsoul.ip2region.DataBlock;
 import org.lionsoul.ip2region.DbConfig;
 import org.lionsoul.ip2region.DbSearcher;
+import org.lionsoul.ip2region.Util;
 
 import io.undertow.server.HttpServerExchange;
+import io.undertow.util.HeaderMap;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -36,7 +36,7 @@ public class Region implements HybridHandler {
         if (StringUtils.isBlank(ip)) {
             ip = HybridUtils.getParam(exchange, "showapi_userIp");
             if (StringUtils.isBlank(ip)) {
-                ip = Util.getIp(exchange);
+                ip = Region.getIp(exchange);
             }
             addIp = true;
         }
@@ -48,13 +48,13 @@ public class Region implements HybridHandler {
     }
 
     public static Map<String, String> searchToMap(String ip) {
+        Map<String, String> map = new HashMap<>();
         DataBlock dataBlock = search(ip);
         if (dataBlock != null) {
             // 国家，区域，省份，城市，运营商
             String region = dataBlock.getRegion();
             if (StringUtils.isNotBlank(region)) {
-                Map<String, String> map = new LinkedHashMap<>(8);
-                String[] split = region.split("[|]", 5);
+                String[] split = StringUtils.split(region, '|');
                 int idx = 0;
                 map.put("country", zeroToEmpty(split[idx++]));
                 map.put("area", zeroToEmpty(split[idx++]));
@@ -62,14 +62,13 @@ public class Region implements HybridHandler {
                 map.put("city", zeroToEmpty(split[idx++]));
                 map.put("isp", zeroToEmpty(split[idx++]));
                 map.put("region", String.join(StringUtils.EMPTY, map.values()));
-                return map;
             }
         }
-        return Collections.emptyMap();
+        return map;
     }
 
     public static DataBlock search(String ip) {
-        if (Util.isIp(ip)) {
+        if (Util.isIpAddress(ip)) {
             synchronized (dbSearcher) {
                 try {
                     return dbSearch.apply(ip);
@@ -79,6 +78,27 @@ public class Region implements HybridHandler {
             }
         }
         return null;
+    }
+
+    /** 获取真实IP地址 */
+    public static String getIp(HttpServerExchange exchange) {
+        String[] ipHeaders = { "HTTP_X_FORWARDED_FOR", "HTTP_CLIENT_IP", "WL-Proxy-Client-IP", "Proxy-Client-IP",
+                "X-Forwarded-For", "X-Real-IP" };
+        HeaderMap requestHeaders = exchange.getRequestHeaders();
+        for (String ipHeader : ipHeaders) {
+            String ipValue = requestHeaders.getFirst(ipHeader);
+            if (!StringUtils.isBlank(ipValue) && !"unknown".equalsIgnoreCase(ipValue)) {
+                int common = ipValue.indexOf(',');
+                if (common > -1) {
+                    // clientip,proxy1,proxy2
+                    ipValue = ipValue.substring(0, common);
+                }
+                if (Util.isIpAddress(ipValue) && !"127.0.0.1".equals(ipValue)) {
+                    return ipValue;
+                }
+            }
+        }
+        return exchange.getSourceAddress().getAddress().getHostAddress();
     }
 
     private static String zeroToEmpty(String value) {
