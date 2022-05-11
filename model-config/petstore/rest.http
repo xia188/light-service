@@ -1,0 +1,31 @@
+@host=http://localhost:8083
+@petstore={{host}}/v1
+### swagger ui
+http://localhost:8083/specui.html
+### openapi.yaml
+{{host}}/spec.yaml
+### get pets
+{{petstore}}/pets?limit=1
+### retrieve
+{{petstore}}/pets/1
+### delete 1
+DELETE {{petstore}}/pets/1
+key: deleteKey
+### create
+POST {{petstore}}/pets
+Content-Type: application/json
+
+{
+"name": "Peppa",
+"id": 1,
+"tag": "Pig"
+}
+### update name=George,tag= 
+POST {{petstore}}/pets
+Content-Type: application/json
+
+{
+"name": "George",
+"id": 1,
+"tag": ""
+}

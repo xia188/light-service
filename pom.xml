@@ -10,5 +10,6 @@
     <module>gserver</module>
     <module>gservice</module>
     <module>graphql</module>
+    <module>petstore</module>
   </modules>
 </project>

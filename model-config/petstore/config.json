@@ -1,0 +1,30 @@
+{
+  "rootPackage": "com.xlongwei.petstore",
+  "handlerPackage": "com.xlongwei.petstore.handler",
+  "modelPackage": "com.xlongwei.petstore.model",
+  "artifactId": "petstore",
+  "groupId": "com.xlongwei",
+  "name": "petstore",
+  "version": "3.0.1",
+  "overwriteHandler": true,
+  "overwriteHandlerTest": true,
+  "httpPort": 8083,
+  "enableHttp": true,
+  "httpsPort": 8443,
+  "enableHttps": false,
+  "enableHttp2": false,
+  "enableRegistry": false,
+  "eclipseIDE": false,
+  "dockerOrganization": "xlongwei",
+  "enableErrorProne": false,
+  "supportDb": true,
+  "supportH2ForTest": true,
+  "dbInfo": {
+    "name": "h2",
+    "driverClassName": "org.h2.jdbcx.JdbcDataSource",
+    "jdbcUrl": "jdbc:h2:mem:XE;MODE=Oracle;INIT=runscript from 'classpath:scripts/petstore.sql';",
+    "username": "sa",
+    "password": "sa"
+  },
+  "supportClient": false
+}
