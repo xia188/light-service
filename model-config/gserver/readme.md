@@ -13,7 +13,7 @@ java -jar codegen-cli.jar -f light-hybrid-4j-server -c model-config/gserver/conf
 mvn eclipse:eclipse
 
 ### gserver需要被gservice依赖，因此需要install
-mvn install -DskipTests -Dmaven.javadoc.skip=true
+mvn install -DskipTests -Dmaven.javadoc.skip=true -f gserver/pom.xml
 
 ### gservice
 java -jar codegen-cli.jar -f light-hybrid-4j-service -c model-config/gservice/config.json -m model-config/gservice/schema.json -o gservice
@@ -150,4 +150,28 @@ gservice注册服务：监听8083端口（默认值），配置consul地址（�
 请求gserver：cmd={"hello":"中文"}，注意：/api/json处理中文会抛异常，应请求/hybrid
 ```
 curl http://localhost:8082/hybrid/gservice/echo?cmd=%7B%22hello%22%3A%22%E4%B8%AD%E6%96%87%22%7D
+```
+
+### mysql
+mysql作为公共依赖建议在gserver引入，有三种方案：1，service.yml配置HikariDataSource；2，在datasource.yml配置多个数据源，参考light-example-4j/common/multidb/dbconfig里DbStartupHookProvider加载多个数据源；3，引入data-source构件配置MysqlDataSource等数据源。本示例参考方案2（方案1配置多个数据源时抛异常SQLFeatureNotSupportedException），并调整了依赖版本。
+```
+<version.hikaricp>4.0.3</version.hikaricp>
+<version.mysql>5.1.49</version.mysql>
+<dependency>
+    <groupId>com.zaxxer</groupId>
+    <artifactId>HikariCP</artifactId>
+    <version>${version.hikaricp}</version>
+</dependency>
+<dependency>
+    <groupId>mysql</groupId>
+    <artifactId>mysql-connector-java</artifactId>
+    <version>${version.mysql}</version>
+</dependency>
+```
+service.yml，增加了DbStartupHookProvider，增加了HybridHandler.init()支持初始化数据
+```
+- com.networknt.server.StartupHookProvider:
+  # registry all service handlers by from annotations
+  - com.networknt.rpc.router.RpcStartupHookProvider
+  - com.networknt.rpc.router.DbStartupHookProvider
 ```

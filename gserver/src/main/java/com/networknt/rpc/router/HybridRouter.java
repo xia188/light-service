@@ -33,6 +33,12 @@ public class HybridRouter extends RpcRouter {
                 PathHandler httpHandler = (PathHandler) super.getHandler();
                 System.out.println("hybridPath = " + hybridPath);
                 httpHandler.addPrefixPath(hybridPath, new HybridHandler());
+                RpcStartupHookProvider.serviceMap.forEach((k, v) -> {
+                        if (v instanceof com.networknt.rpc.HybridHandler) {
+                                com.networknt.rpc.HybridHandler hybridHandler = (com.networknt.rpc.HybridHandler) v;
+                                hybridHandler.init();
+                        }
+                });
                 return httpHandler;
         }
 
