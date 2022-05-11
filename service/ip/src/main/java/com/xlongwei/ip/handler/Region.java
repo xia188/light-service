@@ -8,10 +8,11 @@ import java.util.Map;
 
 import com.networknt.config.Config;
 import com.networknt.config.JsonMapper;
-import com.networknt.rpc.Handler;
+import com.networknt.rpc.HybridHandler;
 import com.networknt.rpc.router.ServiceHandler;
 import com.networknt.utility.HybridUtils;
 import com.networknt.utility.StringUtils;
+import com.xlongwei.ip.ThrowingFunction;
 import com.xlongwei.ip.Util;
 
 import org.lionsoul.ip2region.DataBlock;
@@ -23,20 +24,10 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @ServiceHandler(id = "xlongwei.com/ip/region/0.0.1")
-public class Region implements Handler {
+public class Region implements HybridHandler {
     static Map<String, Object> ipConfig = Config.getInstance().getJsonMapConfig("ip");
     static DbSearcher dbSearcher = null;
-
-    static {
-        try {
-            DbConfig config = new DbConfig();
-            String dbFile = (String) ipConfig.get("dbFile");
-            dbSearcher = new DbSearcher(config, dbFile);
-            log.info("DbSearcher init success");
-        } catch (Exception e) {
-            log.warn("fail to init DbSearcher: {}", e.getMessage());
-        }
-    }
+    static ThrowingFunction<String, DataBlock> dbSearch = null;
 
     @Override
     public ByteBuffer handle(HttpServerExchange exchange, Object input) {
@@ -81,14 +72,7 @@ public class Region implements Handler {
         if (Util.isIp(ip)) {
             synchronized (dbSearcher) {
                 try {
-                    switch ((String) ipConfig.get("search")) {
-                        case "memory":
-                            return dbSearcher.memorySearch(ip);
-                        case "btree":
-                            return dbSearcher.btreeSearch(ip);
-                        case "binary":
-                            return dbSearcher.binarySearch(ip);
-                    }
+                    return dbSearch.apply(ip);
                 } catch (Exception e) {
                     log.warn("fail to search ip: {}, ex: {}", ip, e.getMessage());
                 }
@@ -99,5 +83,27 @@ public class Region implements Handler {
 
     private static String zeroToEmpty(String value) {
         return value == null || "0".equals(value) ? StringUtils.EMPTY : value;
+    }
+
+    @Override
+    public void init() {
+        try {
+            DbConfig config = new DbConfig();
+            String search = (String) ipConfig.get("search");
+            String dbFile = (String) ipConfig.get("dbFile");
+            dbSearcher = new DbSearcher(config, dbFile);
+            log.info("DbSearcher init success, search={} dbFile={}", search, dbFile);
+            switch (search) {
+                case "memory":
+                    dbSearch = dbSearcher::memorySearch;
+                case "binary":
+                    dbSearch = dbSearcher::binarySearch;
+                case "btree":
+                default:
+                    dbSearch = dbSearcher::btreeSearch;
+            }
+        } catch (Exception e) {
+            log.warn("fail to init DbSearcher: {}", e.getMessage());
+        }
     }
 }

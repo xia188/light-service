@@ -1,4 +1,4 @@
 # memory btree binary
-search: btree
+search: ${ip.search:btree}
 # curl -O http://t.xlongwei.com/softwares/library/ip2region.db
-dbFile: ../library/ip2region.db
+dbFile: ${ip.dbFile:../library/ip2region.db}
