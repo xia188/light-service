@@ -1,0 +1,1 @@
+configLoaderClass: ${startup.configLoaderClass:com.networknt.server.DummyConfigLoader}

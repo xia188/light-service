@@ -170,13 +170,13 @@ public class HybridHandler extends AbstractRpcHandler {
         }
     }
 
-    static Http2Client client = Http2Client.getInstance();
     static boolean isHttp2 = Server.getServerConfig().isEnableHttp2()
             && Server.getServerConfig().isEnableHttps();
     static OptionMap optionMap = isHttp2 ? OptionMap.create(UndertowOptions.ENABLE_HTTP2, true)
             : OptionMap.EMPTY;
 
     private void handleRegistryHandler(HttpServerExchange exchange, String serviceToUrl, Map<String, Object> bodyMap) {
+        Http2Client client = Http2Client.getInstance();
         ClientConnection connection = null;
         try {
             URI uri = new URI(serviceToUrl);

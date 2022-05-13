@@ -1,3 +1,4 @@
 codegen-cli.jar
+dist*
 log/
 .vscode
