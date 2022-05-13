@@ -175,3 +175,30 @@ service.yml，增加了DbStartupHookProvider，增加了HybridHandler.init()支�
   - com.networknt.rpc.router.RpcStartupHookProvider
   - com.networknt.rpc.router.DbStartupHookProvider
 ```
+Handler.java
+```
+class Handler implements HybridHandler{
+  DataSource ds = null;
+    @Override
+    public void init() {
+        ds = DbStartupHookProvider.dbMap.get("apijson");
+    }
+    @Override
+    public ByteBuffer handle(HttpServerExchange exchange, Object input) {
+        try (Connection connection = ds.getConnection();
+                PreparedStatement statement = connection
+                        .prepareStatement("select name from idcard where code in (?,?,?)")) {
+            statement.setString(1, area1);
+            statement.setString(2, area2);
+            statement.setString(3, area3);
+            ResultSet resultSet = statement.executeQuery();
+            while (resultSet.next()) {
+                list.add(resultSet.getString("name"));
+            }
+            log.info("bank_card={} is ok", resultSet.getRow());
+        } catch (Exception e) {
+            log.warn("fail to load bank_card", e);
+        }
+    }    
+}
+```

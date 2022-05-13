@@ -1,0 +1,25 @@
+{
+  "rootPackage": "com.xlongwei.id",
+  "handlerPackage": "com.xlongwei.id.handler",
+  "modelPackage": "com.xlongwei.id.model",
+  "artifactId": "id",
+  "groupId": "com.xlongwei",
+  "name": "id",
+  "version": "3.0.1",
+  "overwriteHandler": true,
+  "overwriteHandlerTest": true,
+  "httpPort": 8083,
+  "enableHttp": true,
+  "httpsPort": 8443,
+  "enableHttps": false,
+  "enableHttp2": false,
+  "enableRegistry": false,
+  "eclipseIDE": false,
+  "dockerOrganization": "xlongwei",
+  "enableErrorProne": false,
+  "supportDb": false,
+  "dbInfo": {
+    "name": "mysql"
+  },
+  "supportClient": false
+}

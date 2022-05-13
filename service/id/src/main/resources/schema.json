@@ -1,0 +1,10 @@
+{"xlongwei.com/id/card/0.0.1":{"schema": {
+        "title": "Service",
+        "type": "object",
+        "properties": {
+          "idNumber": {
+            "type": "string"
+          }
+        },
+        "required": []
+      },"scope": "id.r"}}

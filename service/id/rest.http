@@ -1,0 +1,14 @@
+@host=http://localhost:8083
+@hybrid={{host}}/hybrid
+### get
+{{hybrid}}/id/card?idNumber=513031
+### post
+POST {{hybrid}}/id/card
+
+idNumber=3209
+### post json
+POST {{hybrid}}/id/card
+
+{"idNumber":"320926195511175276"}
+### error
+{{hybrid}}/id/card?idNumber=3209261955111752767

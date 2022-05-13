@@ -1,0 +1,22 @@
+{
+  "host": "xlongwei.com",
+  "service": "id",
+  "action": [
+    {
+      "name": "card",
+      "version": "0.0.1",
+      "handler": "Card",
+      "scope": "id.r",
+      "schema": {
+        "title": "Service",
+        "type": "object",
+        "properties": {
+          "idNumber": {
+            "type": "string"
+          }
+        },
+        "required": []
+      }
+    }
+  ]
+}
