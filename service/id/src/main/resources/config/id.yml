@@ -1,1 +1,3 @@
 ds: ${id.ds:apijson}
+# idcard有pinyin字段时可以设置拼音排序
+orderBy: ${id.orderBy:code}

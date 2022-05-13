@@ -5,12 +5,15 @@ import java.nio.ByteBuffer;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 import javax.sql.DataSource;
 
+import com.github.houbb.pinyin.constant.enums.PinyinStyleEnum;
+import com.github.houbb.pinyin.util.PinyinHelper;
 import com.networknt.config.Config;
 import com.networknt.config.JsonMapper;
 import com.networknt.rpc.HybridHandler;
@@ -27,6 +30,8 @@ import lombok.extern.slf4j.Slf4j;
 public class Area implements HybridHandler {
     static DataSource ds = null;
     static int year = 2020;
+    static String orderBy = "code";
+    static boolean hasPinyin = false;
 
     @Override
     public ByteBuffer handle(HttpServerExchange exchange, Object input) {
@@ -52,16 +57,44 @@ public class Area implements HybridHandler {
             map.put("provinces", provinces);
             map.put("cities", cities);
             map.put("counties", counties);
-        }
-        areas(sql.toString()).forEach((code, name) -> {
-            if (code.endsWith("0000")) {
-                provinces.put(code.substring(0, 2), name);
-            } else if (code.endsWith("00")) {
-                cities.put(code.substring(0, 4), name);
-            } else {
-                counties.put(code, name);
+        } else {
+            if ("pinyin".equals(area) && hasPinyin) {
+                try (Connection connection = ds.getConnection();
+                        PreparedStatement statement = connection
+                                .prepareStatement("select code,name from idcard", ResultSet.TYPE_FORWARD_ONLY,
+                                        ResultSet.CONCUR_READ_ONLY);
+                        PreparedStatement update = connection
+                                .prepareStatement("update idcard set pinyin=? where code=?")) {
+                    statement.setFetchSize(Integer.MIN_VALUE);
+                    ResultSet resultSet = statement.executeQuery();
+                    while (resultSet.next()) {
+                        String code = resultSet.getString("code");
+                        String name = resultSet.getString("name");
+                        String pinyin = PinyinHelper.toPinyin(name, PinyinStyleEnum.INPUT, StringUtils.EMPTY);
+                        // log.debug("code={} name={} pinyin={}", code, name, pinyin);
+                        update.setString(1, pinyin);
+                        update.setString(2, code);
+                        update.addBatch();
+                    }
+                    statement.close();
+                    int[] executeBatch = update.executeBatch();
+                    log.info("pinyin update={}", Arrays.stream(executeBatch).sum());
+                } catch (Exception e) {
+                    log.warn("fail to query {}", sql, e);
+                }
             }
-        });
+        }
+        if (!map.isEmpty()) {
+            areas(sql.append(" order by " + orderBy).toString()).forEach((code, name) -> {
+                if (code.endsWith("0000")) {
+                    provinces.put(code.substring(0, 2), name);
+                } else if (code.endsWith("00")) {
+                    cities.put(code.substring(0, 4), name);
+                } else {
+                    counties.put(code, name);
+                }
+            });
+        }
         return HybridUtils.toByteBuffer(JsonMapper.toJson(map));
     }
 
@@ -98,5 +131,11 @@ public class Area implements HybridHandler {
         } catch (Exception e) {
             log.warn("fail to load idcard", e);
         }
+        try {
+            orderBy = (String) config.get("orderBy");
+            hasPinyin = PinyinHelper.class != null;
+        } catch (Throwable e) {
+        }
+        log.info("hasPinyin={}", hasPinyin);
     }
 }

@@ -20,3 +20,5 @@ POST {{hybrid}}/id/card
 {{hybrid}}/id/area?area=5116
 ### all
 {{hybrid}}/id/area?area=511623
+### pinyin
+{{hybrid}}/id/area?area=pinyin

@@ -107,7 +107,12 @@
     <version>1.18.8</version>
     <scope>provided</scope>
 </dependency>        
-        
+<dependency>
+     <groupId>com.github.houbb</groupId>
+     <artifactId>pinyin</artifactId>
+     <version>0.3.1</version>
+     <scope>provided</scope>
+</dependency>
         
         <!-- Test Dependencies -->
         <dependency>
