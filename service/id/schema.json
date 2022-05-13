@@ -17,6 +17,22 @@
         },
         "required": []
       }
+    },
+    {
+      "name": "area",
+      "version": "0.0.1",
+      "handler": "Area",
+      "scope": "id.r",
+      "schema": {
+        "title": "Service",
+        "type": "object",
+        "properties": {
+          "area": {
+            "type": "string"
+          }
+        },
+        "required": []
+      }
     }
   ]
 }

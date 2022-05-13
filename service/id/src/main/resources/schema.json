@@ -7,4 +7,13 @@
           }
         },
         "required": []
+      },"scope": "id.r"},"xlongwei.com/id/area/0.0.1":{"schema": {
+        "title": "Service",
+        "type": "object",
+        "properties": {
+          "area": {
+            "type": "string"
+          }
+        },
+        "required": []
       },"scope": "id.r"}}

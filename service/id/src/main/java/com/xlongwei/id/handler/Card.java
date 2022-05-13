@@ -13,6 +13,7 @@ import java.util.Map;
 
 import javax.sql.DataSource;
 
+import com.networknt.config.Config;
 import com.networknt.config.JsonMapper;
 import com.networknt.rpc.HybridHandler;
 import com.networknt.rpc.router.DbStartupHookProvider;
@@ -172,6 +173,7 @@ public class Card implements HybridHandler {
 
     @Override
     public void init() {
-        ds = DbStartupHookProvider.dbMap.get("apijson");
+        Map<String, Object> config = Config.getInstance().getJsonMapConfig("id");
+        ds = DbStartupHookProvider.dbMap.get(config.get("ds"));
     }
 }

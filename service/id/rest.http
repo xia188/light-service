@@ -12,3 +12,11 @@ POST {{hybrid}}/id/card
 {"idNumber":"320926195511175276"}
 ### error
 {{hybrid}}/id/card?idNumber=3209261955111752767
+### provinces
+{{hybrid}}/id/area
+### cities
+{{hybrid}}/id/area?area=51
+### counties
+{{hybrid}}/id/area?area=5116
+### all
+{{hybrid}}/id/area?area=511623

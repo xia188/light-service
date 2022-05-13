@@ -11,6 +11,7 @@ import java.util.Map;
 
 import javax.sql.DataSource;
 
+import com.networknt.config.Config;
 import com.networknt.config.JsonMapper;
 import com.networknt.rpc.HybridHandler;
 import com.networknt.rpc.router.DbStartupHookProvider;
@@ -63,7 +64,8 @@ public class Card implements HybridHandler {
 
     @Override
     public void init() {
-        ds = DbStartupHookProvider.dbMap.get("apijson");
+        Map<String, Object> config = Config.getInstance().getJsonMapConfig("bank");
+        ds = DbStartupHookProvider.dbMap.get(config.get("ds"));
         try (Connection connection = ds.getConnection();
                 PreparedStatement statement = connection.prepareStatement("select cardBin from bank_card");
                 ResultSet resultSet = statement.executeQuery()) {
