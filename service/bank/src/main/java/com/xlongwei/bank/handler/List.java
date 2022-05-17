@@ -33,7 +33,7 @@ import lombok.extern.slf4j.Slf4j;
 @ServiceHandler(id = "xlongwei.com/bank/list/0.0.1")
 public class List implements HybridHandler {
     static DataSource ds = null;
-    static ByteBuffer buffer;
+    static byte[] bankList = null;
     static boolean hasPinyin = false;
 
     @Override
@@ -81,7 +81,7 @@ public class List implements HybridHandler {
                         .toByteBuffer(JsonMapper.toJson(Collections.singletonMap("error", e.getMessage())));
             }
         }
-        return buffer;
+        return ByteBuffer.wrap(bankList);
     }
 
     @Override
@@ -90,7 +90,7 @@ public class List implements HybridHandler {
         ds = DbStartupHookProvider.dbMap.get(config.get("ds"));
         try {
             InputStream is = List.class.getResourceAsStream("/bankList.json");
-            buffer = ByteBuffer.wrap(NioUtils.toByteArray(is));
+            bankList = NioUtils.toByteArray(is);
             log.info("bankList is ok");
         } catch (Exception e) {
             log.warn("fail to init bankList", e);

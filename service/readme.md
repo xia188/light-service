@@ -1,7 +1,7 @@
 ### 新增项目
 复制model-config/gservice到service目录，修改服务名称，编辑schema.json，生成服务项目
 ```
-gservice=ip java -jar codegen-cli.jar -f light-hybrid-4j-service -c model-config/${gservice}/config.json -m model-config/${gservice}/schema.json -o ${gservice}
+gservice=mobile java -jar codegen-cli.jar -f light-hybrid-4j-service -c service/${gservice}/config.json -m service/${gservice}/schema.json -o service/${gservice}
 ```
 
 ### pom.xml，gservice自身依赖可以参考ip和服务一起打包，gserver公共依赖参考bank可以直接引用mysql数据源

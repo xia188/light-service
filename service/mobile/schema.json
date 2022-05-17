@@ -1,0 +1,25 @@
+{
+  "host": "xlongwei.com",
+  "service": "mobile",
+  "action": [
+    {
+      "name": "region",
+      "version": "0.0.1",
+      "handler": "Region",
+      "scope": "mobile.r",
+      "schema": {
+        "title": "Service",
+        "type": "object",
+        "properties": {
+          "mobile": {
+            "type": "string",
+            "pattern":"1\\d{2,10}"
+          }
+        },
+        "required": [
+          "mobile"
+        ]
+      }
+    }
+  ]
+}

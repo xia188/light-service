@@ -1,0 +1,2 @@
+# binary another prospect
+algorithm: ${mobile.algorithm:binary}

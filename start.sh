@@ -26,6 +26,8 @@ usage(){
     echo "  clean       clean target and dist"
     echo "  package     package gserver and service"
     echo "  dist        build dist"
+    echo "  eclipse     eclipse:eclipse"
+    echo "  sources     dependency:sources"
 }
 
 status(){
@@ -103,6 +105,14 @@ dist(){
     tar zcvf dist.tgz dist start.sh
 }
 
+eclipse(){
+	mvn eclipse:eclipse -f service/pom.xml
+}
+
+sources(){
+	mvn dependency:sources -f service/pom.xml
+}
+
 if [ $# -eq 0 ]; then 
     usage
 else
@@ -114,6 +124,8 @@ else
 	clean) clean ;;
 	package) package ;;
 	dist) dist ;;
+	eclipse) eclipse ;;
+	sources) sources ;;
 	*) usage ;;
 	esac
 fi

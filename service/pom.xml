@@ -10,5 +10,6 @@
     <module>bank</module>
     <module>id</module>
     <module>ip</module>
+    <module>mobile</module>
   </modules>
 </project>

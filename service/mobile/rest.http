@@ -1,0 +1,11 @@
+@host=http://localhost:8083
+@hybrid={{host}}/hybrid
+@region={{hybrid}}/mobile/region
+### get
+{{region}}?mobile=18798896741
+### post
+POST {{region}}
+
+mobile=1879889
+###
+{{region}}?mobile=187
