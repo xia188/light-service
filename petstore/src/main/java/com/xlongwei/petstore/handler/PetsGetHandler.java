@@ -4,17 +4,14 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.ArrayList;
-import java.util.Deque;
 import java.util.List;
-
-import javax.sql.DataSource;
 
 import com.networknt.config.JsonMapper;
 import com.networknt.handler.LightHttpHandler;
-import com.networknt.service.SingletonServiceFactory;
 import com.xlongwei.petstore.model.Pet;
+import com.xlongwei.petstore.utility.Utils;
 
-import org.apache.commons.lang3.math.NumberUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import io.undertow.server.HttpServerExchange;
 import io.undertow.util.HttpString;
@@ -25,11 +22,21 @@ public class PetsGetHandler implements LightHttpHandler {
     public void handleRequest(HttpServerExchange exchange) throws Exception {
         exchange.getResponseHeaders().add(new HttpString("Content-Type"), "application/json");
         exchange.setStatusCode(200);
-        Deque<String> limitParam = exchange.getQueryParameters().get("limit");
-        int limit = NumberUtils.toInt(limitParam == null ? "100" : limitParam.getFirst(), 100);
-        try (Connection connection = SingletonServiceFactory.getBean(DataSource.class).getConnection();
-                PreparedStatement statement = connection.prepareCall("select * from pet limit ?")) {
-            statement.setInt(1, limit);
+        String limit = StringUtils.defaultIfBlank(Utils.getQueryParameter(exchange, "limit"), "100");
+        String maxId = Utils.getQueryParameter(exchange, "maxId");
+        if (maxId != null && !maxId.matches("\\d+")) {
+            maxId = null;
+        }
+        try (Connection connection = Utils.ds.getConnection();
+                PreparedStatement statement = connection.prepareStatement(
+                        maxId == null ? "select * from pet order by id desc limit ?"
+                                : "select * from pet where id<? order by id desc limit ?")) {
+            if (maxId == null) {
+                statement.setInt(1, Integer.parseInt(limit));
+            } else {
+                statement.setInt(1, Integer.parseInt(maxId));
+                statement.setInt(2, Integer.parseInt(limit));
+            }
             ResultSet resultSet = statement.executeQuery();
             List<Pet> pets = new ArrayList<>();
             while (resultSet.next()) {
@@ -38,6 +45,10 @@ public class PetsGetHandler implements LightHttpHandler {
                 pet.setName(resultSet.getString("name"));
                 pet.setTag(resultSet.getString("tag"));
                 pets.add(pet);
+            }
+            if (!pets.isEmpty()) {
+                exchange.getResponseHeaders().add(new HttpString("x-next"),
+                        "/v1/pets?maxId=" + pets.get(pets.size() - 1).getId() + "&limit=" + limit);
             }
             exchange.getResponseSender().send(JsonMapper.toJson(pets));
         }

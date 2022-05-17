@@ -4,28 +4,37 @@
 http://localhost:8083/specui.html
 ### openapi.yaml
 {{host}}/spec.yaml
-### get pets
-{{petstore}}/pets?limit=1
-### retrieve
+### get pets，默认查最新100条
+{{petstore}}/pets?limit=2
+### 滑动翻页，只能依次向下翻页，不能任意跳转某页，这种方式性能不会随数据量的增长而降低
+{{petstore}}/pets?limit=2&maxId=3
+### retrieve Peppa Pig
 {{petstore}}/pets/1
 ### delete 1
 DELETE {{petstore}}/pets/1
 key: deleteKey
-### create
-POST {{petstore}}/pets
-Content-Type: application/json
-
-{
-"name": "Peppa",
-"id": 1,
-"tag": "Pig"
-}
-### update name=George,tag= 
+### create George Pig
 POST {{petstore}}/pets
 Content-Type: application/json
 
 {
 "name": "George",
-"id": 1,
+"tag": "Pig"
+}
+### update tag=，更新tag为空字符串
+PUT {{petstore}}/pets/1
+Content-Type: application/json
+
+{
+"name": "Peppa",
 "tag": ""
+}
+###
+{{petstore}}/pets/1
+### update tag=null，置tag为null值
+PUT {{petstore}}/pets/1
+Content-Type: application/json
+
+{
+"name": "Peppa"
 }

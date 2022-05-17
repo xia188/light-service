@@ -65,6 +65,7 @@ handlers:
   - com.xlongwei.petstore.handler.PetsGetHandler
   - com.xlongwei.petstore.handler.PetsPostHandler
   - com.xlongwei.petstore.handler.PetsPetIdGetHandler
+  - com.xlongwei.petstore.handler.PetsPetIdPutHandler
   - com.xlongwei.petstore.handler.PetsPetIdDeleteHandler
 
 
@@ -98,6 +99,11 @@ paths:
     exec:
       - default
       - com.xlongwei.petstore.handler.PetsPetIdGetHandler
+  - path: '/v1/pets/{petId}'
+    method: 'PUT'
+    exec:
+      - default
+      - com.xlongwei.petstore.handler.PetsPetIdPutHandler
   - path: '/v1/pets/{petId}'
     method: 'DELETE'
     exec:
