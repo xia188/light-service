@@ -1,1 +1,2 @@
 ds: ${id.ds:apijson}
+cardBin: ${id.cardBin:false}

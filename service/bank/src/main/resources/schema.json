@@ -7,4 +7,18 @@
           }
         },
         "required": []
+      },"scope": "bank.r"},"xlongwei.com/bank/list/0.0.1":{"schema": {
+        "title": "Service",
+        "type": "object",
+        "properties": {
+          "orderBy": {
+            "type": "string",
+            "enum": [
+              "bankCode",
+              "bankName",
+              "pinyin"
+            ]
+          }
+        },
+        "required": []
       },"scope": "bank.r"}}

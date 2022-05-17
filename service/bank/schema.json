@@ -17,6 +17,27 @@
         },
         "required": []
       }
+    },
+    {
+      "name": "list",
+      "version": "0.0.1",
+      "handler": "List",
+      "scope": "bank.r",
+      "schema": {
+        "title": "Service",
+        "type": "object",
+        "properties": {
+          "orderBy": {
+            "type": "string",
+            "enum": [
+              "bankCode",
+              "bankName",
+              "pinyin"
+            ]
+          }
+        },
+        "required": []
+      }
     }
   ]
 }

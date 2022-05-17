@@ -35,3 +35,12 @@ mvn eclipse:eclipse -f service/pom.xml
     "vmArgs": "-Dlight-4j-config-dir=gserver/src/main/resources/config -Dlogback.configurationFile=gserver/src/test/resources/logback-test.xml",
 }
 ```
+
+### bank.yml
+```
+# cardBin会占用部分内存，默认直接使用mysql查询最长的记录
+cardBin: ${id.cardBin:false}
+```
+
+### bank/list
+列出常用银行列表，支持排序?orderBy=bankName默认|bankCode

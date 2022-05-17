@@ -20,24 +20,38 @@ import com.networknt.utility.HybridUtils;
 import com.networknt.utility.StringUtils;
 import com.xlongwei.bank.BankUtil;
 
+import org.apache.commons.lang3.BooleanUtils;
+
 import io.undertow.server.HttpServerExchange;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @ServiceHandler(id = "xlongwei.com/bank/card/0.0.1")
 public class Card implements HybridHandler {
-    DataSource ds = null;
+    static DataSource ds = null;
+    static boolean cardBin = false;
+    static String queryEqualCardBin = "select cardBin,issuerCode as bankId,issuerName as bankName,cardName,cardDigits,cardType,bankCode,bankName as bankName2 from bank_card where cardBin=?";
+    static String queryLikeCardBin = "select cardBin,issuerCode as bankId,issuerName as bankName,cardName,cardDigits,cardType,bankCode,bankName as bankName2 from bank_card where instr(?,cardBin)=1 order by length(cardBin) desc limit 1";
 
     @Override
     public ByteBuffer handle(HttpServerExchange exchange, Object input) {
         String bankCardNumber = HybridUtils.getParam(exchange, "bankCardNumber");
-        if (StringUtils.isNotBlank(bankCardNumber)) {
-            String cardBin = BankUtil.cardBin(bankCardNumber);
-            if (StringUtils.isNotBlank(cardBin)) {
+        if (StringUtils.isNotBlank(bankCardNumber) && bankCardNumber.matches("\\d{2,}")) {
+            String queryParam = null, querySql = null;
+            if (cardBin) {
+                String cardBin = BankUtil.cardBin(bankCardNumber);
+                if (StringUtils.isNotBlank(cardBin)) {
+                    queryParam = cardBin;
+                    querySql = queryEqualCardBin;
+                }
+            } else {
+                queryParam = bankCardNumber;
+                querySql = queryLikeCardBin;
+            }
+            if (queryParam != null) {
                 try (Connection connection = ds.getConnection();
-                        PreparedStatement statement = connection.prepareStatement(
-                                "select cardBin,issuerCode as bankId,issuerName as bankName,cardName,cardDigits,cardType,bankCode,bankName as bankName2 from bank_card where cardBin=?")) {
-                    statement.setString(1, cardBin);
+                        PreparedStatement statement = connection.prepareStatement(querySql)) {
+                    statement.setString(1, bankCardNumber);
                     ResultSet resultSet = statement.executeQuery();
                     if (resultSet.next()) {
                         Map<String, String> map = new HashMap<>(16);
@@ -66,15 +80,21 @@ public class Card implements HybridHandler {
     public void init() {
         Map<String, Object> config = Config.getInstance().getJsonMapConfig("bank");
         ds = DbStartupHookProvider.dbMap.get(config.get("ds"));
-        try (Connection connection = ds.getConnection();
-                PreparedStatement statement = connection.prepareStatement("select cardBin from bank_card");
-                ResultSet resultSet = statement.executeQuery()) {
-            while (resultSet.next()) {
-                BankUtil.addBin(resultSet.getString("cardBin"));
+        cardBin = BooleanUtils.toBooleanObject(config.get("cardBin").toString());
+        if (cardBin) {
+            try (Connection connection = ds.getConnection();
+                    PreparedStatement statement = connection.prepareStatement("select cardBin from bank_card");
+                    ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    BankUtil.addBin(resultSet.getString("cardBin"));
+                }
+                resultSet.last();
+                log.info("bank_card={} is ok", resultSet.getRow());
+            } catch (Exception e) {
+                log.warn("fail to load bank_card", e);
             }
-            log.info("bank_card={} is ok", resultSet.getRow());
-        } catch (Exception e) {
-            log.warn("fail to load bank_card", e);
+        } else {
+            log.info("bank_card={} is ok", false);
         }
     }
 }

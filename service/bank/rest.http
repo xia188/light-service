@@ -8,3 +8,9 @@
 POST {{card}}
 
 bankCardNumber=451811549678
+### bank list orderBy=bankName
+{{bank}}/list
+### bank list
+{{bank}}/list?orderBy=bankCode
+### bank list pinyin
+{{bank}}/list?orderBy=pinyin
