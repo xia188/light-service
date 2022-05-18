@@ -1,2 +1,2 @@
-ds: ${id.ds:apijson}
-cardBin: ${id.cardBin:false}
+ds: ${bank.ds:apijson}
+cardBin: ${bank.cardBin:false}

@@ -51,7 +51,7 @@ public class Card implements HybridHandler {
             if (queryParam != null) {
                 try (Connection connection = ds.getConnection();
                         PreparedStatement statement = connection.prepareStatement(querySql)) {
-                    statement.setString(1, bankCardNumber);
+                    statement.setString(1, queryParam);
                     ResultSet resultSet = statement.executeQuery();
                     if (resultSet.next()) {
                         Map<String, String> map = new HashMap<>(16);
