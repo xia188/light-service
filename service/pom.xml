@@ -7,6 +7,7 @@
   <packaging>pom</packaging>
   <name>service</name>
   <modules>
+    <module>apijson</module>
     <module>bank</module>
     <module>id</module>
     <module>ip</module>

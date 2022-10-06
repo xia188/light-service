@@ -20,6 +20,20 @@ mvn eclipse:eclipse -f service/pom.xml
 </dependency>
 ```
 
+### 调试gservice：继承HybridHandler，支持init初始化，使用HybridUtils返回中文json
+```
+{
+    "type": "java",
+    "name": "apijson",
+    "request": "launch",
+    "mainClass": "com.networknt.server.Server",
+    "projectName": "apijson",
+    "cwd": "${workspaceFolder}/light-service",
+    "vmArgs": "-Dlight-4j-config-dir=gserver/src/main/resources/config -Dlogback.configurationFile=gserver/src/test/resources/logback-test.xml",
+}
+```
+
+
 ### vscode
 mvn package -DskipTests -Dmaven.javadoc.skip=true -f service/pom.xml
 ```

@@ -81,7 +81,7 @@ direct直连相比consul要简单一些，代码已调整为优先使用直连�
 4. consul.yml，配置consulUrl: ${consul.consulUrl:http://localhost:8500}，通过环境变量consul.consulUrl指定consul
 5. service.yml，配置Registry、ConsulClient、Cluster等，到这里gservice就可以注册成功了
 6. hybrid定义的serviceId=host/service/action/version，注册时serviceId=host.service.action.version，consul里id=ip:serviceId:port
-7. HybridHandler，通过serviceId没有找到Handler时，再通过registry查找可用服务，cluster.serviceToUrl(protocol,serviceId,tag=environment,requestKey=null)，最后通过Http2Client转发请求，暂支持json转发，不支持文件上传
+7. HybridHandler，通过serviceId没有找到Handler时，再通过registry查找可用服务，cluster.serviceToUrl(protocol,serviceId,tag=environment,requestKey=null)，最后通过Http2Client转发请求，支持json转发和文件上传
 8. secret.yml，配置consulToken=，默认consul不要求token。service.yml可以配置直连服务，这样就可以不依赖consul
 
 测试：
@@ -89,7 +89,7 @@ consul运行，直连时不需要
 ```
 setsid consul agent -server -bootstrap-expect 1 -ui -node=dc1 -bind 127.0.0.1 -client=0.0.0.0 -data-dir /soft/consul/data -config-dir /soft/consul/config &> /var/log/consul.log &
 ```
-service.yml配置，gservice时绑定到gserver一起运行的，它们可以使用同一套配置，但是独立运行时需避免端口重复
+service.yml配置，gservice是绑定到gserver一起运行的，它们可以使用同一套配置，但是独立运行时需避免端口重复
 ```
 - com.networknt.registry.URL:
   - com.networknt.registry.URLImpl:
@@ -99,7 +99,7 @@ service.yml配置，gservice时绑定到gserver一起运行的，它们可以使
       path: consul
       parameters:
         registryRetryPeriod: '30000'
-        # 直连时手动配置服务端点，逗号分隔多个地址
+        # 直连时手动配置服务端点，逗号分隔多个地址，serviceId=host.service.action.version
         xlongwei.com.gservice.echo.0.0.1: http://localhost:8083
         xlongwei.com.gservice.hello.0.0.1: http://localhost:8083,http://localhost:8084
 - com.networknt.consul.client.ConsulClient:

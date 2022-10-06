@@ -1,0 +1,25 @@
+{
+  "host": "xlongwei.com",
+  "service": "apijson",
+  "action": [
+    {
+      "name": "get",
+      "version": "0.0.1",
+      "handler": "Get",
+      "scope": "apijson.r",
+      "schema": {
+        "title": "Service",
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    },
+    {
+      "name": "head",
+      "version": "0.0.1",
+      "handler": "Head",
+      "scope": "apijson.r",
+      "schema": {}
+    }
+  ]
+}

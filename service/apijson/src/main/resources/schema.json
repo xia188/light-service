@@ -1,0 +1,6 @@
+{"xlongwei.com/apijson/get/0.0.1":{"schema": {
+        "title": "Service",
+        "type": "object",
+        "properties": {},
+        "required": []
+      },"scope": "apijson.r"},"xlongwei.com/apijson/head/0.0.1":{"schema": {},"scope": "apijson.r"}}
