@@ -11,6 +11,8 @@ import io.undertow.server.HttpServerExchange;
 import io.undertow.server.handlers.form.FormData.FormValue;
 
 public class HybridUtils {
+    public static ThreadLocal<HttpServerExchange> exchange = new ThreadLocal<>();
+
     private HybridUtils() {
     }
 

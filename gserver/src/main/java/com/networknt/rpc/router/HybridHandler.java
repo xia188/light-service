@@ -110,8 +110,17 @@ public class HybridHandler extends AbstractRpcHandler {
 
     static List<String> rpcKeys = Arrays.asList("host", "service", "action", "version");
 
-    @SuppressWarnings({ "unchecked" })
     private void handleRequest(HttpServerExchange exchange, Map<String, Object> bodyMap) {
+        try{
+            HybridUtils.exchange.set(exchange);
+            handleRequest1(exchange, bodyMap);
+        }finally{
+            HybridUtils.exchange.remove();
+        }
+    }
+
+    @SuppressWarnings({ "unchecked" })
+    private void handleRequest1(HttpServerExchange exchange, Map<String, Object> bodyMap) {
         if (log.isInfoEnabled() && !bodyMap.isEmpty()) {
             log.info("bodyMap: {}", JsonMapper.toJson(bodyMap));
         }
@@ -133,7 +142,10 @@ public class HybridHandler extends AbstractRpcHandler {
             return;
         }
         // calling jwt scope verification here. token signature and expiration are done
-        verifyJwt(JwtVerifyHandler.config, serviceId, exchange);
+        Map<String, Object> serviceMap = (Map<String, Object>) JsonHandler.schema.get(serviceId);
+        if (serviceMap != null) {
+            verifyJwt(JwtVerifyHandler.config, serviceId, exchange);
+        }
         // 兼容JsonHandler取data进行验证和处理，处理HybridHandler数据时移除host、version，但保留data
         if (bodyMap.keySet().containsAll(rpcKeys)) {
             rpcKeys.forEach(bodyMap::remove);
@@ -151,7 +163,7 @@ public class HybridHandler extends AbstractRpcHandler {
             bodyMap.remove("version");
         }
         // calling schema validator here.
-        ByteBuffer error = validate(serviceId, bodyMap);
+        ByteBuffer error = serviceMap == null ? null : validate(serviceId, bodyMap);
         if (error != null) {
             exchange.setStatusCode(StatusCodes.BAD_REQUEST);
             exchange.getResponseSender().send(error);

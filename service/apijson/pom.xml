@@ -107,11 +107,11 @@
     <version>1.18.8</version>
     <scope>provided</scope>
 </dependency>        
-<dependency>
+<!-- <dependency>
     <groupId>com.github.APIJSON</groupId>
     <artifactId>apijson-framework</artifactId>
     <version>5.2.0</version>
-</dependency>
+</dependency> -->
 <dependency>
     <groupId>apijson.boot</groupId>
     <artifactId>apijson-boot</artifactId>
@@ -120,6 +120,10 @@
         <exclusion>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
+        </exclusion>
+        <exclusion>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
         </exclusion>
     </exclusions>
 </dependency>
