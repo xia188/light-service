@@ -1,3 +1,4 @@
 ds: ${apijson.ds:apijson}
 enabled: ${apijson.enabled:false}
 debug: ${apijson.debug:false}
+verify: ${apijson.verify:120}

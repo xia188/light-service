@@ -1,27 +1,15 @@
 
 package com.xlongwei.apijson.handler;
 
-import java.nio.ByteBuffer;
+import javax.servlet.http.HttpSession;
 
-import com.networknt.rpc.Handler;
 import com.networknt.rpc.router.ServiceHandler;
-import com.networknt.utility.HybridUtils;
 import com.xlongwei.apijson.DemoApplication;
 
-import apijson.JSON;
-import io.undertow.server.HttpServerExchange;
-import io.undertow.util.Methods;
-
 @ServiceHandler(id = "xlongwei.com/apijson/head/0.0.1")
-public class Head implements Handler {
+public class Head extends Abstract {
     @Override
-    public ByteBuffer handle(HttpServerExchange exchange, Object input) {
-        if (!DemoApplication.apijsonEnabled || !Methods.POST.equals(exchange.getRequestMethod())) {
-            return HybridUtils.toByteBuffer(DemoApplication.badRequest);
-        } else {
-            String request = JSON.toJSONString(HybridUtils.getBodyMap(exchange));
-            String response = DemoApplication.apijson.head(request, null);
-            return HybridUtils.toByteBuffer(response);
-        }
+    public String handle(String request, HttpSession session) {
+        return DemoApplication.apijson.head(request, session);
     }
 }

@@ -22,12 +22,13 @@ public class DemoApplication {
     public static final Map<String, Object> config = Config.getInstance().getJsonMapConfig("apijson");
     public static final boolean apijsonEnabled = (Boolean) config.get("enabled");
     public static final DemoController apijson = new DemoController();
-    public static final DataSource ds = DbStartupHookProvider.dbMap.get(config.get("ds"));
+    public static DataSource ds = DbStartupHookProvider.dbMap.get(config.get("ds"));
     public static final String badRequest = "{\"error\":\"bad request\"}";
 
     public static void start() {
         log.info("apijson.enabled={}", apijsonEnabled);
         if (apijsonEnabled) {
+            ds = DbStartupHookProvider.dbMap.get(config.get("ds"));
             APIJSONApplication.DEFAULT_APIJSON_CREATOR = new APIJSONCreator<Long>() {
                 @Override
                 public Parser<Long> createParser() {
