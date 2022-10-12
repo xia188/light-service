@@ -48,3 +48,17 @@ POST {{hybrid}}/apijson/reload
 Content-Type: application/json
 
 {"type":"ALL","phone":"13000038710","verify":"1639"}
+### getByTag
+POST {{hybrid}}/apijson/getByTag/Access
+Content-Type: application/json
+
+{"id":"1"}
+### headByTag
+POST {{hybrid}}/apijson/headByTag/District
+
+{"province":"510000"}
+### getsByTag
+POST {{hybrid}}/apijson/getsByTag/User
+Authorization: {{jwt}}
+
+{"id":38710}
