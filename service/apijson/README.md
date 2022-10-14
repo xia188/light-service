@@ -62,3 +62,11 @@ ds: ${apijson.ds:apijson}
 enabled: ${apijson.enabled:false}
 debug: ${apijson.debug:false}
 ```
+
+### session序列化，以便支持redis存储
+```
+1，使用JDK序列化机制，将DemoSession序列化为byte[]
+2，使用json序列化，需要将相关类加入autoType
+ParserConfig.getGlobalInstance().addAccept("apijson.demo.model.");
+JSON.toJSONString(session, SerializerFeature.WriteClassName);
+```

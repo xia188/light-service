@@ -7,6 +7,7 @@ import org.apache.commons.lang3.StringUtils;
 import com.networknt.rpc.Handler;
 import com.networknt.utility.HybridUtils;
 import com.xlongwei.apijson.DemoApplication;
+import com.xlongwei.apijson.DemoVerifier;
 
 import apijson.JSON;
 import apijson.RequestMethod;
@@ -29,7 +30,7 @@ public abstract class ByTag implements Handler {
             }
             String request = JSON.toJSONString(HybridUtils.getBodyMap(exchange));
             // 这里可以适配一个HttpSession，目前在DemoVerifier做了简单鉴权
-            String response = DemoApplication.apijson.parseByTag(method(), tag, null, request, null);
+            String response = DemoApplication.apijson.parseByTag(method(), tag, null, request, DemoVerifier.session());
             return HybridUtils.toByteBuffer(response);
         }
     }
