@@ -1,6 +1,5 @@
 package com.xlongwei.petstore.model;
 
-import java.util.Arrays;
 import java.util.Objects;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
